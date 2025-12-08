@@ -4,34 +4,18 @@ services:
   - type: web
     name: ebrali-inventario
     env: python
-    region: oregon # change if you prefer another region
+    region: oregon
     branch: main
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: >-
-      bash -lc 'if [ -n "${GOOGLE_SHEETS_CREDENTIALS_JSON:-}" ]; then printf "%s" "$GOOGLE_SHEETS_CREDENTIALS_JSON" > ./minha-app-node-sheets-a27f04d71760.json; fi && gunicorn -w 4 -k sync -b 0.0.0.0:$PORT server:app'
+    startCommand: gunicorn -w 4 -b 0.0.0.0:$PORT server:app
     healthCheckPath: /healthz
-    healthCheckPort: 10000
     envVars:
-      - key: SPREADSHEET_ID
-        value: "1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M"
-      - key: WORKSHEET_TITLE
-        value: "Sheet1"
+      - key: PYTHON_VERSION
+        value: "3.11.7"
       - key: FLASK_ENV
         value: "production"
-      - key: PYTHON_VERSION
-        value: "3.13.9"
-services:
-  - type: web
-    name: ebrali-inventario
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 4 -b 0.0.0.0:$PORT server:app
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.7
-      - key: PORT
-        value: "3000"
-      - key: FLASK_ENV
-        value: production
+      # IMPORTANTE: Configure estas variáveis no dashboard do Render:
+      # - GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/minha-app-node-sheets-a27f04d71760.json
+      # - SPREADSHEET_ID=1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M
+      # - WORKSHEET_TITLE=Planilha1
