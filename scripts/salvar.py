@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DOTENV_PATH = BASE_DIR / ".env"
 DEFAULT_ENV = {
     # Caminho padrão para o JSON de credenciais do serviço do Google
-    "GOOGLE_APPLICATION_CREDENTIALS": "./minha-app-node-sheets-abc123.json",
+    "GOOGLE_APPLICATION_CREDENTIALS": "./minha-app-node-sheets-a27f04d71760.json",
     # ID fixo da planilha informada na URL
     # https://docs.google.com/spreadsheets/d/1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M/edit?gid=0#gid=0
     "SPREADSHEET_ID": "1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M",

@@ -79,6 +79,13 @@ def api_export_options():
     return ("", 204)
 
 
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    """Health check endpoint used by Render and other platforms.
+
+    Returns HTTP 200 when the app is up. Keep this lightweight.
+    """
+    return jsonify({"status": "ok"}), 200
 @app.post("/api/export")
 def api_export():
     try:
@@ -130,6 +137,12 @@ def api_export():
     if isinstance(result, dict):
         return jsonify({"status": "ok", "report": result, "columns": HEADERS})
     return jsonify({"status": "ok", "rows": len(linhas), "columns": HEADERS})
+
+
+@app.route("/healthz")
+def healthz():
+    """Endpoint de health-check para o Render."""
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
