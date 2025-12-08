@@ -143,3 +143,4 @@ Se ainda houver problemas:
 2. Verifique se todas as variáveis de ambiente estão configuradas
 3. Verifique se o Secret File foi criado corretamente
 
+
