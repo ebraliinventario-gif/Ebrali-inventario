@@ -1,8 +1,10 @@
 import os
+import json
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
 import gspread
+from google.oauth2.service_account import Credentials
 from dotenv import dotenv_values, load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -48,15 +50,21 @@ def _get_env(name: str) -> str:
     return value
 
 
-credentials_path = _get_env("GOOGLE_APPLICATION_CREDENTIALS")
+# Lê a variável de ambiente com o conteúdo do JSON
+creds_json = _get_env("GOOGLE_CREDS_JSON")
+
+# Converte o texto para dicionário Python
+creds_info = json.loads(creds_json)
+
+# Cria as credenciais a partir das informações
+creds = Credentials.from_service_account_info(creds_info)
+
+# Cria o cliente do gspread
+client = gspread.authorize(creds)
+
+# Obtém a planilha
 spreadsheet_id = _get_env("SPREADSHEET_ID")
 worksheet_title = _get_env("WORKSHEET_TITLE")
-
-credentials_full_path = Path(credentials_path)
-if not credentials_full_path.is_absolute():
-    credentials_full_path = (BASE_DIR / credentials_full_path).resolve()
-
-client = gspread.service_account(filename=str(credentials_full_path))
 sheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
 
 
