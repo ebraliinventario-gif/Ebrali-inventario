@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -55,14 +56,27 @@ class ExportPayload(BaseModel):
 
 app = FastAPI(title="Inventário Ebrali API")
 
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://seuusuario.github.io",
+    "https://seuusuario.github.io/nome-do-repo",
+    "https://ebrali-inventario.onrender.com",
+]
+
+env_allowed = os.getenv("ALLOWED_ORIGINS")
+if env_allowed:
+    allowed_origins = [
+        origin.strip()
+        for origin in env_allowed.split(",")
+        if origin.strip()
+    ]
+else:
+    allowed_origins = DEFAULT_ALLOWED_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "https://seuusuario.github.io",
-        "https://seuusuario.github.io/nome-do-repo",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
