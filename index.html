@@ -154,7 +154,9 @@
 
     <script>
         // ========== DADOS E ESTADO ==========
-        const API_BASE_URL = 'https://ebrali-inventario-backend.onrender.com';
+        const API_BASE_URL =
+            (window.APP_CONFIG && window.APP_CONFIG.apiBaseUrl) ||
+            'https://ebrali-inventario-backend.onrender.com';
         // Dados carregados dos arquivos externos via window.initialData
         const dadosIniciais = window.initialData || [];
         
