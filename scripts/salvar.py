@@ -15,8 +15,8 @@ DEFAULT_ENV = {
     # ID fixo da planilha informada na URL
     # https://docs.google.com/spreadsheets/d/1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M/edit?gid=0#gid=0
     "SPREADSHEET_ID": "1cn-9mg-_8QzYtZpCoLpDvglA036m1j70OvQaO3Ebo4M",
-    # Nome da aba padrão criada pelo Google para a guia principal
-    "WORKSHEET_TITLE": "Sheet1",
+    # Nome da aba padrão
+    "WORKSHEET_TITLE": "Planilha1",
 }
 
 if DOTENV_PATH.exists():
@@ -50,26 +50,65 @@ def _get_env(name: str) -> str:
     return value
 
 
-# Lê a variável de ambiente com o conteúdo do JSON
-creds_json = _get_env("GOOGLE_CREDS_JSON")
+# Variáveis globais para lazy initialization
+_client = None
+_sheet = None
+_spreadsheet_id = None
+_worksheet_title = None
 
-# Converte o texto para dicionário Python
-creds_info = json.loads(creds_json)
 
-# Cria as credenciais a partir das informações
-creds = Credentials.from_service_account_info(creds_info)
+def _get_client():
+    """Inicializa o cliente do gspread de forma lazy (só quando necessário)."""
+    global _client
+    if _client is None:
+        creds_path = _get_env("GOOGLE_APPLICATION_CREDENTIALS")
+        
+        # Verifica se é um caminho de arquivo ou JSON string
+        if os.path.exists(creds_path):
+            # É um arquivo - lê o arquivo
+            with open(creds_path, 'r', encoding='utf-8') as f:
+                creds_info = json.load(f)
+        else:
+            # Pode ser um JSON string direto (fallback)
+            try:
+                creds_info = json.loads(creds_path)
+            except json.JSONDecodeError:
+                raise RuntimeError(
+                    f"GOOGLE_APPLICATION_CREDENTIALS deve ser um caminho de arquivo válido ou JSON string. "
+                    f"Valor recebido: {creds_path[:50]}..."
+                )
+        
+        # Cria as credenciais com escopos explícitos para Google Sheets API
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        
+        # Cria o cliente do gspread
+        _client = gspread.authorize(creds)
+    
+    return _client
 
-# Cria o cliente do gspread
-client = gspread.authorize(creds)
 
-# Obtém a planilha
-spreadsheet_id = _get_env("SPREADSHEET_ID")
-worksheet_title = _get_env("WORKSHEET_TITLE")
-sheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
+def _get_sheet():
+    """Obtém a planilha padrão de forma lazy."""
+    global _sheet, _spreadsheet_id, _worksheet_title
+    
+    if _sheet is None:
+        client = _get_client()
+        _spreadsheet_id = _get_env("SPREADSHEET_ID")
+        _worksheet_title = _get_env("WORKSHEET_TITLE")
+        _sheet = client.open_by_key(_spreadsheet_id).worksheet(_worksheet_title)
+    
+    return _sheet
 
 
 def _get_sheet_by_title(title: str):
+    """Obtém uma worksheet específica pelo título."""
     try:
+        client = _get_client()
+        spreadsheet_id = _get_env("SPREADSHEET_ID")
         return client.open_by_key(spreadsheet_id).worksheet(title)
     except gspread.exceptions.WorksheetNotFound:
         raise RuntimeError(f"Worksheet '{title}' não encontrada na planilha") from None
@@ -83,6 +122,7 @@ def _normalize_row(valores: Sequence[object]) -> List[str]:
 
 def salvar(*valores):
     linha = _normalize_row(valores)
+    sheet = _get_sheet()
     sheet.append_row(linha, value_input_option="USER_ENTERED")
     print("Gravado →", linha)
 
@@ -96,7 +136,7 @@ def salvar_linhas(
     conflict_policy: str = "merge",
 ):
     registros = [_normalize_row(linha) for linha in linhas]
-    destino = sheet if worksheet_title is None else _get_sheet_by_title(worksheet_title)
+    destino = _get_sheet() if worksheet_title is None else _get_sheet_by_title(worksheet_title)
 
     if not registros:
         return {"added": 0, "updated": 0, "conflicts": []}
