@@ -1,0 +1,2621 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Controle de Inventário</title>
+    <link rel="icon" href="logo_ebrali-2025.png" type="image/png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SheetJS para exportação Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Dados das ruas (arquivos externos) -->
+    <script src="config.js"></script>
+    <script src="dados_ruas.js"></script>
+    <script src="dados_ruas_03_06.js"></script>
+    <script src="dados_ruas_07_15.js"></script>
+    <script src="dados_ruas_09_15.js"></script>
+    <script src="dados_ruas_12_15.js"></script>
+    <script src="dados_ruas_14_17.js"></script>
+    <script src="dados_ruas_18_20.js"></script>
+    <script src="dados_ruas_buffer.js"></script>
+    <script src="dados_industria_99.js"></script>
+    <script src="dados_piso.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- ========== HEADER ========== -->
+    <header class="header">
+        <div class="logo-area">
+            <img src="logo_ebrali-2025.png" alt="Logo Ebrali" class="logo-img">
+            <span class="header-title">Controle de Inventário</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn-export" onclick="resetarNomeUsuario()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
+                </svg>
+                Trocar conferente
+            </button>
+            <button class="btn-export" onclick="abrirModalExportacao()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+                Exportar Excel
+            </button>
+        </div>
+    </header>
+
+    <!-- ========== CONTEÚDO PRINCIPAL ========== -->
+    <main class="main-content">
+        <!-- Filtros -->
+        <section class="filter-section">
+            <div class="filter-title">📍 Filtrar por Localização</div>
+            <div class="filter-row">
+                <select class="filter-select" id="filtroRua" onchange="aplicarFiltro()">
+                    <option value="">Todas as Ruas</option>
+                </select>
+                <select class="filter-select" id="filtroLado" onchange="aplicarFiltro()">
+                    <option value="">Todos os Lados</option>
+                    <option value="A">Lado A</option>
+                    <option value="B">Lado B</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Modal de Nome -->
+        <div id="nameModal" class="name-modal-backdrop">
+            <div class="name-modal">
+                <div class="name-modal-video"></div>
+                <div class="name-modal-content">
+                    <div class="name-modal-title">Bem-vindo!</div>
+                    <div class="name-modal-subtitle">
+                        QUAL O SEU NOME?
+                        <span>WHAT IS YOUR NAME?</span>
+                    </div>
+                    <input id="nameInput" class="name-input" type="text" placeholder="Ex: Anderson" autocomplete="name"
+                           onkeydown="if(event.key==='Enter'){salvarNomeUsuario();}">
+                    <div class="name-modal-footer">
+                        <button type="button" class="name-btn name-btn-primary" onclick="salvarNomeUsuario()">
+                            Confirmar / Confirm
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Exportação -->
+        <div id="exportModal" class="name-modal-backdrop">
+            <div class="name-modal">
+                <div class="name-modal-content">
+                    <div class="name-modal-title">Para qual planilha enviar?</div>
+                    <div class="name-modal-subtitle">Selecione a contagem desejada</div>
+                    <div class="export-modal-actions">
+                        <button type="button" class="name-btn name-btn-primary" onclick="confirmarExportacao('Planilha1')">
+                            Contagem 01
+                        </button>
+                        <button type="button" class="name-btn" onclick="confirmarExportacao('Planilha2')">
+                            Contagem 02
+                        </button>
+                    </div>
+                    <button type="button" class="name-btn" onclick="fecharModalExportacao()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela -->
+        <div class="table-container">
+            <div class="table-scroll">
+                <table id="tabelaInventario">
+                    <thead>
+                        <tr>
+                            <th>Código Endereço</th>
+                            <th>Descrição Endereço</th>
+                            <th>Armazém</th>
+                            <th class="custom-col-header">Cód. Produto</th>
+                            <th class="custom-col-header">Descrição Produto</th>
+                            <th class="custom-col-header">Qtde</th>
+                            <th>Lote</th>
+                            <th>Validade</th>
+                            <th id="userColHeader">Operador</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabela">
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty-message" id="mensagemVazia">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
+                </svg>
+                <p>Nenhum item cadastrado</p>
+                <p>Toque no botão + para adicionar</p>
+            </div>
+        </div>
+    </main>
+
+
+    <!-- ========== SELETOR DE TEMA ========== -->
+    <div class="theme-container">
+        <button class="theme-toggle" onclick="toggleThemeMenu()">🎨</button>
+        <div class="theme-options" id="themeOptions">
+            <div class="theme-option green" onclick="setTheme('green')" title="Verde"></div>
+            <div class="theme-option blue" onclick="setTheme('blue')" title="Azul"></div>
+            <div class="theme-option purple" onclick="setTheme('purple')" title="Roxo"></div>
+            <div class="theme-option dark" onclick="setTheme('dark')" title="Escuro"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========== DADOS E ESTADO ==========
+        const API_BASE_URL = (window.APP_CONFIG && window.APP_CONFIG.apiBaseUrl) || 'http://localhost:3000';
+        // Dados carregados dos arquivos externos via window.initialData
+        const dadosIniciais = window.initialData || [];
+        
+        /* DADOS REMOVIDOS - AGORA NOS ARQUIVOS EXTERNOS
+        const dadosIniciais = [
+            // ========== RUA 01 - LADO A ==========
+            // PICKING
+            {codigo: 'PI01A0101', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0201', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0301', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0401', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0501', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0601', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0701', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A0801', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1101', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1201', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1301', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1401', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1501', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1601', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1701', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1801', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01A1901', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 02
+            {codigo: 'IN01A0102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1902', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 03
+            {codigo: 'IN01A0103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1003', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 04
+            {codigo: 'IN01A0104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A0904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1004', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01A1904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // ========== RUA 01 - LADO B ==========
+            // PICKING
+            {codigo: 'PI01B0101', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0201', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0301', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0401', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0501', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0601', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0701', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B0801', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1101', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1201', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1301', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1401', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1501', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1601', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1701', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1801', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI01B1901', descricao: 'ESTOQUE PICKING - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 02
+            {codigo: 'IN01B0102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1902', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 03
+            {codigo: 'IN01B0103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1003', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 04
+            {codigo: 'IN01B0104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B0904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1004', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN01B1904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 01', custom1: '', custom2: '', custom3: ''},
+            // ========== RUA 02 - LADO A ==========
+            // PICKING
+            {codigo: 'PI02A0101', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0201', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0301', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0401', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0501', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0601', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0701', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A0801', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1101', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1201', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1301', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1401', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1501', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1601', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1701', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1801', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02A1901', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 02
+            {codigo: 'IN02A0102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1902', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 03
+            {codigo: 'IN02A0103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1003', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 04
+            {codigo: 'IN02A0104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A0904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1004', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02A1904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // ========== RUA 02 - LADO B ==========
+            // PICKING
+            {codigo: 'PI02B0101', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0201', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0301', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0401', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0501', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0601', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0701', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B0801', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1101', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1201', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1301', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1401', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1501', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1601', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1701', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1801', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'PI02B1901', descricao: 'ESTOQUE PICKING - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 02
+            {codigo: 'IN02B0102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1102', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1202', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1302', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1402', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1502', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1602', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1702', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1802', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1902', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 03
+            {codigo: 'IN02B0103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1003', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1103', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1203', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1303', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1403', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1503', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1603', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1703', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1803', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1903', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            // INTERMEDIARIO NIVEL 04
+            {codigo: 'IN02B0104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B0904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1004', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1104', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1204', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1304', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1404', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1504', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1604', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1704', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1804', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+            {codigo: 'IN02B1904', descricao: 'ESTOQUE INTERMEDIARIO - RUA 02', custom1: '', custom2: '', custom3: ''},
+        ];
+        FIM DOS DADOS REMOVIDOS */
+        
+        let dados = [];
+        // Colunas customizadas agora têm semântica fixa:
+        // custom1 -> código do produto
+        // custom2 -> descrição do produto (preenchida automaticamente)
+        // custom3 -> quantidade
+        let colunasPersonalizadas = ['Cód. Produto', 'Descrição Produto', 'Qtde'];
+        let userName = '';
+
+        // ========== TABELA DE PRODUTOS ==========
+        // Mapa simples código -> { produto, embalagem }
+        // Adicione/ajuste aqui conforme a sua tabela de códigos.
+                                                                const PRODUTOS = {
+            '2A': { produto: 'SEMENTE DE URUCUM', embalagem: '50KG' },
+            '3A': { produto: 'OREGANO TURCO', embalagem: '12,50KG' },
+            '4': { produto: 'CRAVO FLOR', embalagem: '50KG' },
+            '5': { produto: 'SALSA DESIDRATADA', embalagem: '10KG' },
+            '6': { produto: 'MANJERICAO', embalagem: '25KG' },
+            '6A': { produto: 'MANJERICAO', embalagem: '25KG' },
+            '7': { produto: 'PIMENTA PRETA GRAO', embalagem: '50KG' },
+            '9': { produto: 'COMINHO', embalagem: '99 50KG' },
+            '9A': { produto: 'COMINHO', embalagem: '99 50KG' },
+            '12': { produto: 'PIMENTA JAMAICA', embalagem: '50KG' },
+            '12A': { produto: 'PIMENTA JAMAICA', embalagem: '50KG' },
+            '13': { produto: 'ERVA DOCE', embalagem: '50KG' },
+            '13A': { produto: 'ERVA DOCE', embalagem: '50KG' },
+            '14': { produto: 'CEBOLA PO', embalagem: '20KG' },
+            '14A': { produto: 'CEBOLA PO', embalagem: '20KG' },
+            '15': { produto: 'CAMOMILA', embalagem: '10KG' },
+            '17': { produto: 'CANELA JAWA INTEIRA', embalagem: '50KG' },
+            '17A': { produto: 'CANELA JAWA INTEIRA', embalagem: '50KG' },
+            '21': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '20 KG' },
+            '21A': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '20 KG' },
+            '23': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '25KG' },
+            '23A': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '25KG' },
+            '24': { produto: 'ANIS ESTRELADO', embalagem: '10KG' },
+            '24A': { produto: 'ANIS ESTRELADO', embalagem: '10KG' },
+            '25': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '23 KG' },
+            '25A': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '23 KG' },
+            '26': { produto: 'ERVILHA INTEIRA', embalagem: '50 KG' },
+            '27': { produto: 'GUARANA GRAO', embalagem: '50 KG' },
+            '30': { produto: 'LOURO', embalagem: '50KG' },
+            '30A': { produto: 'LOURO', embalagem: '50KG' },
+            '32': { produto: 'BOLDO', embalagem: '25KG' },
+            '32A': { produto: 'BOLDO', embalagem: '25KG' },
+            '34': { produto: 'CEBOLINHA DESIDRATADA', embalagem: '10KG' },
+            '40A': { produto: 'LINHACA DOURADA', embalagem: '50 KG' },
+            '42': { produto: 'GIRASSOL GRAUDO', embalagem: '22,68KG' },
+            '42A': { produto: 'GIRASSOL GRAUDO', embalagem: '22,68KG' },
+            '43': { produto: 'PIMENTA BRANCA GRAO', embalagem: '50 KG' },
+            '46': { produto: 'CANELA EM PO', embalagem: '10KG' },
+            '48': { produto: 'CEBOLA DESIDRATADA FLOCOS', embalagem: '14KG' },
+            '48A': { produto: 'CEBOLA DESIDRATADA FLOCOS', embalagem: '14KG' },
+            '49': { produto: 'CASTANHA DO PARA SEM CASCA MEDIA', embalagem: '20KG' },
+            '50': { produto: 'CASTANHA DO PARA SEM CASCA MIUDA', embalagem: '20KG' },
+            '51': { produto: 'CASTANHA DO PARA SEM CASCA QUEBRADA', embalagem: '20KG' },
+            '52': { produto: 'BICARBONATO DE SODIO', embalagem: '25KG' },
+            '53': { produto: 'BICARBONATO DE AMONIO', embalagem: '25KG' },
+            '54': { produto: 'NOZ MOSCADA QUEBRADA', embalagem: '25 KG' },
+            '54A': { produto: 'NOZ MOSCADA QUEBRADA', embalagem: '25 KG' },
+            '55': { produto: 'CANELA JAWA QUEBRADA', embalagem: '50KG' },
+            '55A': { produto: 'CANELA JAWA QUEBRADA', embalagem: '50KG' },
+            '58': { produto: 'NOZ MOSCADA BOLA', embalagem: '50KG' },
+            '58A': { produto: 'NOZ MOSCADA BOLA', embalagem: '50KG' },
+            '60': { produto: 'CURRY', embalagem: '10 KG' },
+            '61': { produto: 'ALHO GRANULADO F GRADE', embalagem: '16KG' },
+            '61A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '16KG' },
+            '62': { produto: 'COLORAU', embalagem: '25KG' },
+            '63': { produto: 'MANJERONA', embalagem: '20KG' },
+            '63A': { produto: 'MANJERONA', embalagem: '20KG' },
+            '65': { produto: 'HORTELA', embalagem: '25KG' },
+            '65A': { produto: 'HORTELA', embalagem: '25KG' },
+            '67': { produto: 'QUINUA BRANCA GRAO PERUANA', embalagem: '25 KG' },
+            '67A': { produto: 'QUINUA BRANCA GRAO PERUANA', embalagem: '25 KG' },
+            '68': { produto: 'TRIGO PARA KIBE', embalagem: '25KG' },
+            '70': { produto: 'GERGELIM COM CASCA', embalagem: '40 KG' },
+            '71': { produto: 'PO DE PIMENTA', embalagem: '25KG' },
+            '77': { produto: 'CEBOLA DESIDRATADA FLOCOS', embalagem: '25 KG' },
+            '78': { produto: 'GERGELIM SEM CASCA IMP', embalagem: '25KG' },
+            '78A': { produto: 'GERGELIM SEM CASCA IMP', embalagem: '25KG' },
+            '80': { produto: 'FUNCHO', embalagem: '50KG' },
+            '80A': { produto: 'FUNCHO', embalagem: '50KG' },
+            '81': { produto: 'ALHO GRANULADO F GRADE', embalagem: '25KG' },
+            '81A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '25KG' },
+            '88': { produto: 'NOZ MOSCADA BOLA', embalagem: '10KG' },
+            '88A': { produto: 'NOZ MOSCADA BOLA', embalagem: '10KG' },
+            '91': { produto: 'DAMASCO TURCO N.2', embalagem: '12,50KG' },
+            '91A': { produto: 'DAMASCO TURCO N.2', embalagem: '12,50KG' },
+            '94': { produto: 'LINHAÇA MARROM', embalagem: '25 KG' },
+            '96': { produto: 'NOZ MOSCADA BOLA', embalagem: '25KG' },
+            '96A': { produto: 'NOZ MOSCADA BOLA', embalagem: '25KG' },
+            '99': { produto: 'GERGELIM PRETO', embalagem: '50KG' },
+            '101': { produto: 'LOURO EM PO', embalagem: '10 KG' },
+            '103': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '20KG' },
+            '103A': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '20KG' },
+            '104': { produto: 'ACAFRAO (CURCUMA) EM RAIZ', embalagem: '25 KG' },
+            '104A': { produto: 'ACAFRAO (CURCUMA) EM RAIZ', embalagem: '25 KG' },
+            '106': { produto: 'PIMENTA PRETA PO', embalagem: '10KG' },
+            '107': { produto: 'GERGELIM COM CASCA NAC.', embalagem: '50 KG' },
+            '108': { produto: 'VINAGRETE', embalagem: '10 KG' },
+            '112': { produto: 'ACAFRAO (CURCUMA) EM RAIZ', embalagem: '50 KG' },
+            '112A': { produto: 'ACAFRAO (CURCUMA) EM RAIZ', embalagem: '50 KG' },
+            '117': { produto: 'ENDRO', embalagem: '25 KG' },
+            '117A': { produto: 'ENDRO', embalagem: '25 KG' },
+            '118': { produto: 'GERGELIM COM CASCA', embalagem: '50 KG' },
+            '120': { produto: 'ALHO DESIDRATADO EM PO CHINES', embalagem: '25 KG' },
+            '120A': { produto: 'ALHO DESIDRATADO EM PO CHINES', embalagem: '25 KG' },
+            '121': { produto: 'MOSTARDA AMARELA EM GRAO', embalagem: '25 KG' },
+            '121A': { produto: 'MOSTARDA AMARELA EM GRAO', embalagem: '25 KG' },
+            '123': { produto: 'TOMILHO', embalagem: '25KG' },
+            '123A': { produto: 'TOMILHO', embalagem: '25KG' },
+            '124': { produto: 'PAPRICA PICANTE', embalagem: '10 KG' },
+            '127': { produto: 'LINHAÇA MARROM', embalagem: '50 KG' },
+            '129': { produto: 'SALVIA', embalagem: '25 KG' },
+            '129A': { produto: 'SALVIA', embalagem: '25 KG' },
+            '130': { produto: 'SEMENTE DE URUCUM', embalagem: '25 KG' },
+            '131': { produto: 'ALECRIM', embalagem: '25KG' },
+            '131A': { produto: 'ALECRIM', embalagem: '25KG' },
+            '133': { produto: 'SEMENTE DE CHIA', embalagem: '25KG' },
+            '135': { produto: 'FOLHA DE SENE', embalagem: '50KG' },
+            '136': { produto: 'LINHACA DOURADA', embalagem: '45,36 KG' },
+            '136A': { produto: 'LINHACA DOURADA', embalagem: '45,36 KG' },
+            '138': { produto: 'QUINUA EM FLOCOS PERUANA', embalagem: '25 KG' },
+            '138A': { produto: 'QUINUA EM FLOCOS PERUANA', embalagem: '25 KG' },
+            '145': { produto: 'PIMENTA BRANCA GRAO', embalagem: '10 KG' },
+            '146': { produto: 'CRAVO FLOR', embalagem: '10 KG' },
+            '147': { produto: 'PIMENTA PRETA GRAO', embalagem: '10 KG' },
+            '149': { produto: 'LINHACA DOURADA', embalagem: '25 KG' },
+            '153': { produto: 'HORTELA', embalagem: '20 KG' },
+            '153A': { produto: 'HORTELA', embalagem: '20 KG' },
+            '160': { produto: 'CEBOLA GRANULADA MEDIA 3-5 MM', embalagem: '20 KG' },
+            '160A': { produto: 'CEBOLA GRANULADA MEDIA 3-5 MM', embalagem: '20 KG' },
+            '161': { produto: 'CEBOLA GRANULADA MIUDA 1-3 MM', embalagem: '20 KG' },
+            '161A': { produto: 'CEBOLA GRANULADA MIUDA 1-3 MM', embalagem: '20 KG' },
+            '167': { produto: 'FUNGHI', embalagem: '20KG' },
+            '167A': { produto: 'FUNGHI', embalagem: '20KG' },
+            '168': { produto: 'HIBISCUS FLOR', embalagem: '20KG' },
+            '168A': { produto: 'HIBISCUS FLOR', embalagem: '20 KG' },
+            '169': { produto: 'HIBISCUS FLOR', embalagem: '25 KG' },
+            '169A': { produto: 'HIBISCUS FLOR', embalagem: '25 KG' },
+            '174': { produto: 'TOMATE DES EM FLOCOS', embalagem: '20 KG' },
+            '174A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '20 KG' },
+            '175': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '20 KG' },
+            '175A': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '20KG' },
+            '176': { produto: 'PIMENTAO VERDE DES EM FLOCOS', embalagem: '20 KG' },
+            '176A': { produto: 'PIMENTAO VERDE DES EM FLOCOS', embalagem: '20 KG' },
+            '177': { produto: 'GLUTAMATO MONOSSODICO', embalagem: '25KG' },
+            '177A': { produto: 'GLUTAMATO MONOSSODICO', embalagem: '25KG' },
+            '180': { produto: 'GIRASSOL GRAUDO', embalagem: '20KG' },
+            '189': { produto: 'ALHO GRANULADO 8/16', embalagem: '25 KG' },
+            '189A': { produto: 'ALHO GRANULADO 8/16', embalagem: '25 KG' },
+            '190': { produto: 'ALHO GRANULADO AREIA 16/26', embalagem: '25 KG' },
+            '190A': { produto: 'ALHO GRANULADO AREIA 16/26', embalagem: '25 KG' },
+            '191': { produto: 'NOZ MOSCADA PO', embalagem: '10 KG' },
+            '200': { produto: 'TEMPERO BAIANO', embalagem: '10 KG' },
+            '201': { produto: 'GERGELIM PRETO', embalagem: '25 KG' },
+            '202': { produto: 'UVA PASSA PRETA  ARGENTINA', embalagem: '10 KG' },
+            '202A': { produto: 'UVA PASSA PRETA  ARGENTINA', embalagem: '10 KG' },
+            '204': { produto: 'GOJI BERRY', embalagem: '20 KG' },
+            '204A': { produto: 'GOJI BERRY', embalagem: '20 KG' },
+            '206': { produto: 'AÇAFRAO (CURCUMA) PO CONDIMENTADA', embalagem: '25KG' },
+            '207': { produto: 'COENTRO GRAO ARGENTINO', embalagem: '25KG' },
+            '207A': { produto: 'COENTRO GRAO ARGENTINO', embalagem: '25KG' },
+            '209': { produto: 'NOZ MOSCADA QUEBRADA', embalagem: '50 KG' },
+            '209A': { produto: 'NOZ MOSCADA QUEBRADA', embalagem: '50 KG' },
+            '212': { produto: 'AMEIXA SEM CAROCO 110/132', embalagem: '10 KG' },
+            '212A': { produto: 'AMEIXA SEM CAROCO', embalagem: '10 KG' },
+            '214': { produto: 'PIMENTA CALABRESA', embalagem: '25KG' },
+            '214A': { produto: 'PIMENTA CALABRESA', embalagem: '25KG' },
+            '216': { produto: 'PEPITA GIRASSOL', embalagem: '22,68KG' },
+            '220': { produto: 'MOSTARDA ESCURA GRAO', embalagem: '25 KG' },
+            '222': { produto: 'FUNCHO', embalagem: '25KG' },
+            '222A': { produto: 'FUNCHO', embalagem: '25KG' },
+            '224': { produto: 'PAPRICA DOCE', embalagem: '10 KG' },
+            '225': { produto: 'CHA VERDE', embalagem: '10KG' },
+            '226': { produto: 'CEBOLINHA ANEIS IMP', embalagem: '10KG' },
+            '226A': { produto: 'CEBOLINHA ANEIS IMP', embalagem: '10KG' },
+            '228': { produto: 'CENOURA FLOCOS', embalagem: '20KG' },
+            '228A': { produto: 'CENOURA FLOCOS', embalagem: '20KG' },
+            '229': { produto: 'FENO GREGO', embalagem: '25KG' },
+            '229A': { produto: 'FENO GREGO', embalagem: '25KG' },
+            '232': { produto: 'SEMENTE DE ABOBORA CRUA C/CASCA', embalagem: '25 KG' },
+            '232A': { produto: 'SEMENTE DE ABOBORA CRUA C/CASCA', embalagem: '25 KG' },
+            '233': { produto: 'SHITAKE FATIADO', embalagem: '12 KG' },
+            '233A': { produto: 'SHITAKE FATIADO', embalagem: '12 KG' },
+            '241': { produto: 'CANELA VERA CORTADA 45 CM', embalagem: '25KG' },
+            '242': { produto: 'CANELA VERA CORTADA 55 CM', embalagem: '25KG' },
+            '244': { produto: 'AMEIXA COM CAROCO 110/132', embalagem: '10 KG' },
+            '244A': { produto: 'AMEIXA COM CAROCO', embalagem: '10 KG' },
+            '246': { produto: 'FARINHA DE MARACUJA', embalagem: '10KG' },
+            '247': { produto: 'PROTEÍNA DE SOJA CARAMELO', embalagem: '25KG' },
+            '249': { produto: 'PIMENTA PRETA FECULADA', embalagem: '10 KG' },
+            '251': { produto: 'AIPO', embalagem: '25KG' },
+            '251A': { produto: 'AIPO', embalagem: '25KG' },
+            '252': { produto: 'SEGURELHA', embalagem: '25 KG' },
+            '252A': { produto: 'SEGURELHA', embalagem: '25 KG' },
+            '253': { produto: 'PIMENTA JAMAICA', embalagem: '25KG' },
+            '253A': { produto: 'PIMENTA JAMAICA', embalagem: '25KG' },
+            '254': { produto: 'CARDAMOMO GRAO VERDE', embalagem: '25 KG' },
+            '254A': { produto: 'CARDAMOMO GRAO VERDE', embalagem: '25 KG' },
+            '255': { produto: 'COENTRO PARTIDO ARGENTINO', embalagem: '25KG' },
+            '257': { produto: 'CARDAMOMO VERDE', embalagem: '10 KG' },
+            '257A': { produto: 'CARDAMOMO VERDE', embalagem: '10 KG' },
+            '258': { produto: 'PIMENTA ROSA GRAO', embalagem: '10KG' },
+            '259': { produto: 'FEIJAO BRANCO', embalagem: '50KG' },
+            '261': { produto: 'OREGANO PO', embalagem: '10KG' },
+            '262': { produto: 'SHITAKE FATIADO', embalagem: '14KG' },
+            '262A': { produto: 'SHITAKE FATIADO', embalagem: '14KG' },
+            '264': { produto: 'GOJI BERRY', embalagem: '10 KG' },
+            '264A': { produto: 'GOJI BERRY', embalagem: '10 KG' },
+            '266': { produto: 'PIMENTA JAMAICA', embalagem: '10 KG' },
+            '266A': { produto: 'PIMENTA JAMAICA', embalagem: '10 KG' },
+            '270': { produto: 'GRAO DE BICO 12MM', embalagem: '25 KG' },
+            '273': { produto: 'LEMON PEPPER', embalagem: '10 KG' },
+            '275': { produto: 'GINKGO BILOBA', embalagem: '50KG' },
+            '275A': { produto: 'GINKGO BILOBA', embalagem: '50KG' },
+            '276': { produto: 'PIMENTA PRETA QUEBRADINHA', embalagem: '25KG' },
+            '282': { produto: 'TEMPERO ANA MARIA', embalagem: '10 KG' },
+            '284': { produto: 'CHIMICHURRI C/PIMENTA PREMIUM', embalagem: '10 KG' },
+            '286A': { produto: 'CARDAMOMO EM GRAOS', embalagem: '5 KG' },
+            '287': { produto: 'SHITAKE FATIADO', embalagem: '13 KG' },
+            '287A': { produto: 'SHITAKE FATIADO', embalagem: '13 KG' },
+            '291': { produto: 'HIBISCUS FLOR', embalagem: '22 KG' },
+            '291A': { produto: 'HIBISCUS FLOR', embalagem: '22 KG' },
+            '292': { produto: 'PIMENTA BRANCA CHOCHA', embalagem: '40 KG' },
+            '295': { produto: 'CEBOLA PO', embalagem: '25KG' },
+            '295A': { produto: 'CEBOLA PO', embalagem: '25KG' },
+            '300': { produto: 'CANELA JAWA INTEIRA', embalagem: '20KG' },
+            '300A': { produto: 'CANELA JAWA INTEIRA', embalagem: '20KG' },
+            '302': { produto: 'CHIMICHURRI S/PIMENTA PREMIUM', embalagem: '10KG' },
+            '303': { produto: 'CANELA EM PO', embalagem: '25KG' },
+            '303A': { produto: 'CANELA EM PO IMP', embalagem: '25KG' },
+            '304': { produto: 'CENOURA FLOCOS', embalagem: '25KG' },
+            '304A': { produto: 'CENOURA FLOCOS', embalagem: '25KG' },
+            '311': { produto: 'COMINHO PO', embalagem: '25KG' },
+            '312': { produto: 'FARINHA DE BERINJELA', embalagem: '25KG' },
+            '316': { produto: 'GINSENG', embalagem: '20KG' },
+            '317': { produto: 'CACAU EM PO ALCALINO', embalagem: '25KG' },
+            '317A': { produto: 'CACAU EM PO ALCALINO NAC.', embalagem: '25KG' },
+            '318': { produto: 'COMINHO PO', embalagem: '10KG' },
+            '319': { produto: 'AÇAFRAO (CURCUMA) PO', embalagem: '10KG' },
+            '320': { produto: 'GUARANA PO', embalagem: '10KG' },
+            '321': { produto: 'GENGIBRE EM PO', embalagem: '10 KG' },
+            '322': { produto: 'COENTRO PO', embalagem: '10KG' },
+            '324': { produto: 'CAMOMILA', embalagem: '15KG' },
+            '325': { produto: 'ERVAS FINAS', embalagem: '10KG' },
+            '328': { produto: 'CANELA PO FECULADA', embalagem: '10KG' },
+            '329': { produto: 'PIMENTA BRANCA PO', embalagem: '10KG' },
+            '331': { produto: 'CARDAMOMO PO', embalagem: '10KG' },
+            '332': { produto: 'FARINHA DE BANANA', embalagem: '25KG' },
+            '333': { produto: 'FARINHA DE BANANA', embalagem: '10KG' },
+            '335': { produto: 'CEBOLA ALHO SALSA', embalagem: '10KG' },
+            '337': { produto: 'CRAVO PO', embalagem: '10KG' },
+            '338': { produto: 'PIMENTA JAMAICA PO', embalagem: '10KG' },
+            '340': { produto: 'FARINHA DE BERINJELA', embalagem: '10KG' },
+            '343': { produto: 'GENGIBRE FATIADO', embalagem: '25KG' },
+            '344': { produto: 'MOSTARDA AMARELA 100% PO PURA', embalagem: '10KG' },
+            '347': { produto: 'MOSTARDA AMARELA PO', embalagem: '10KG' },
+            '349': { produto: 'PIMENTA CALABRESA PO', embalagem: '10 KG' },
+            '350': { produto: 'CAPIM LIMAO', embalagem: '20KG' },
+            '352': { produto: 'ERVA DOCE', embalagem: '25KG' },
+            '352A': { produto: 'ERVA DOCE', embalagem: '25KG' },
+            '354': { produto: 'LINHAÇA MARROM', embalagem: '40 KG' },
+            '355': { produto: 'CANELA JAWA QUEBRADA', embalagem: '25KG' },
+            '355A': { produto: 'CANELA JAWA QUEBRADA', embalagem: '25KG' },
+            '356': { produto: 'CRAVO FLOR CATADO', embalagem: '25KG' },
+            '357': { produto: 'PIMENTA PRETA GRAO', embalagem: '25 KG' },
+            '359': { produto: 'TEMPERO DO CHEF', embalagem: '10KG' },
+            '363': { produto: 'NOZ MOSCADA PO FECULADA', embalagem: '10 KG' },
+            '364': { produto: 'TEMPERO EDU GUEDES', embalagem: '10KG' },
+            '368': { produto: 'TRIBULUS PO', embalagem: '10KG' },
+            '369': { produto: 'ACUCAR MASCAVO', embalagem: '20KG' },
+            '370': { produto: 'CREME DE MILHO', embalagem: '50KG' },
+            '371': { produto: 'FUBA ITALIANO', embalagem: '25KG' },
+            '372': { produto: 'FUBA MIMOSO', embalagem: '25KG' },
+            '373': { produto: 'FARINHA DE ROSCA', embalagem: '25KG' },
+            '376': { produto: 'SAL REFINADO', embalagem: '25KG' },
+            '378': { produto: 'ESPINAFRE EM PO', embalagem: '20 KG' },
+            '378A': { produto: 'ESPINAFRE EM PO', embalagem: '20 KG' },
+            '387': { produto: 'PIMENTA BRANCA GRAO', embalagem: '25KG' },
+            '389': { produto: 'LIMAO AIN NATURAL', embalagem: '20KG' },
+            '392': { produto: 'GINKGO BILOBA PO', embalagem: '10KG' },
+            '395': { produto: 'BERINJELA DESIDRATADA', embalagem: '15KG' },
+            '397': { produto: 'SAL ROSA FINO', embalagem: '10KG' },
+            '397A': { produto: 'SAL ROSA FINO', embalagem: '10KG' },
+            '398': { produto: 'SAL ROSA GROSSO', embalagem: '10KG' },
+            '398A': { produto: 'SAL ROSA GROSSO', embalagem: '10KG' },
+            '402': { produto: 'GINSENG PO', embalagem: '10KG' },
+            '404': { produto: 'LEMON CHURRI', embalagem: '10KG' },
+            '406': { produto: 'AÇUCAR DE COCO', embalagem: '25KG' },
+            '406A': { produto: 'AÇUCAR DE COCO', embalagem: '25KG' },
+            '410': { produto: 'CEBOLA AREIA', embalagem: '20KG' },
+            '410A': { produto: 'CEBOLA AREIA', embalagem: '20KG' },
+            '412': { produto: 'AMIDO DE MILHO', embalagem: '25KG' },
+            '417': { produto: 'SALSA DESIDRATADA', embalagem: '15KG' },
+            '418': { produto: 'CEBOLINHA FLOCOS IMP', embalagem: '10KG' },
+            '418A': { produto: 'CEBOLINHA IMP', embalagem: '10KG' },
+            '422': { produto: 'GELATINA', embalagem: '25KG' },
+            '425': { produto: 'AMENDOA CRUA S/C 23/25', embalagem: '10KG' },
+            '426': { produto: 'PISTACHE T/S', embalagem: '11,34 KG' },
+            '426A': { produto: 'PISTACHE T/S', embalagem: '11,34 KG' },
+            '427': { produto: 'AMEIXA SEM CAROCO 88/110', embalagem: '10KG' },
+            '427A': { produto: 'AMEIXA SEM CAROCO 88/110', embalagem: '10KG' },
+            '428': { produto: 'AMEIXA COM CAROCO 132/154', embalagem: '10KG' },
+            '428A': { produto: 'AMEIXA COM CAROCO', embalagem: '10KG' },
+            '429': { produto: 'CEREJA FRUCOL SEM CABO', embalagem: '13,20KG' },
+            '430': { produto: 'NOZES MARIP. EXTRALIGHT', embalagem: '10KG' },
+            '431': { produto: 'SALSA DESIDRATADA', embalagem: '20KG' },
+            '434': { produto: 'AVELA S/ CASCA', embalagem: '10KG' },
+            '434A': { produto: 'AVELA S/ CASCA', embalagem: '10KG' },
+            '436': { produto: 'FARINHA DE CHIA', embalagem: '10KG' },
+            '438': { produto: 'CEREJA ROCOFRUT COM CABO 6X2,10', embalagem: '12,60KG' },
+            '439': { produto: 'MACA PERUANA PO PURA', embalagem: '10KG' },
+            '440': { produto: 'MILHO DE PIPOCA', embalagem: '50KG' },
+            '441': { produto: 'FEIJAO FRADINHO', embalagem: '50KG' },
+            '442': { produto: 'CASTANHA DE CAJU W1 CRUA', embalagem: '11,34KG' },
+            '443': { produto: 'CASTANHA DE CAJU W3', embalagem: '11,34KG' },
+            '444': { produto: 'CASTANHA DE CAJU W4 TORRADA E SALGADA', embalagem: '11,34KG' },
+            '445': { produto: 'OLEO DE COCO 18X220 ML', embalagem: '3,96KG' },
+            '446': { produto: 'CASTANHA DO PARA S/ CASCA LARGE', embalagem: '20KG' },
+            '447': { produto: 'CASTANHA DO PARA S/ CASCA EXTRALARGE', embalagem: '20KG' },
+            '448': { produto: 'COCO RALADO FINO', embalagem: '10KG' },
+            '448A': { produto: 'COCO RALADO FINO', embalagem: '10KG' },
+            '449': { produto: 'COCO RALADO FINO', embalagem: '25KG' },
+            '449A': { produto: 'COCO RALADO FINO', embalagem: '25KG' },
+            '450': { produto: 'FRUTAS CRISTALIZADAS', embalagem: '10KG' },
+            '451': { produto: 'BANANA PASSA', embalagem: '10KG' },
+            '453': { produto: 'FARINHA DE LINHACA DOURADA', embalagem: '20KG' },
+            '454': { produto: 'LENTILHA VERDE', embalagem: '45,36KG' },
+            '455': { produto: 'FARELO DE AVEIA', embalagem: '25KG' },
+            '456': { produto: 'GERGELIM COM CASCA', embalagem: '25 KG' },
+            '457': { produto: 'CASTANHA DE CAJU W3', embalagem: '22,68KG' },
+            '458': { produto: 'SHITAKE INTEIRO', embalagem: '10 KG' },
+            '459': { produto: 'SHITAKE FATIADO', embalagem: '10 KG' },
+            '459A': { produto: 'SHITAKE FATIADO', embalagem: '10 KG' },
+            '460': { produto: 'SEMENTE DE ABOBORA T/S', embalagem: '10 KG' },
+            '460A': { produto: 'SEMENTE DE ABOBORA T/S', embalagem: '10 KG' },
+            '461': { produto: 'AMENDOA T/S', embalagem: '10KG' },
+            '462': { produto: 'AMENDOA LAMINADA', embalagem: '10KG' },
+            '462A': { produto: 'AMENDOA LAMINADA', embalagem: '10KG' },
+            '463': { produto: 'NOZES QUARTZ EXTRALIGHT', embalagem: '10KG' },
+            '463A': { produto: 'NOZES QUARTZ EXTRALIGHT', embalagem: '10KG' },
+            '464': { produto: 'GRAO DE BICO 9MM', embalagem: '50 KG' },
+            '465': { produto: 'CEREJA FRUCOL COM CABO', embalagem: '11,10KG' },
+            '466': { produto: 'DAMASCO TURCO N.1', embalagem: '12,5KG' },
+            '466A': { produto: 'DAMASCO TURCO N.1', embalagem: '12,5KG' },
+            '467': { produto: 'UVA PASSA BRANCA', embalagem: '10 KG' },
+            '467A': { produto: 'UVA PASSA BRANCA', embalagem: '10 KG' },
+            '468': { produto: 'TAMARA SEM CAROCO', embalagem: '5KG' },
+            '470': { produto: 'FARINHA DE LINHACA MARROM', embalagem: '20KG' },
+            '471': { produto: 'GERGELIM TORRADO COM CASCA', embalagem: '10KG' },
+            '473': { produto: 'CASTANHA DE CAJU W1 T/S', embalagem: '11,34KG' },
+            '475': { produto: 'ACUCAR DE COCO', embalagem: '10KG' },
+            '475A': { produto: 'ACUCAR DE COCO', embalagem: '10KG' },
+            '477': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '10KG' },
+            '477A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '10KG' },
+            '478': { produto: 'SALSA FLOCOS', embalagem: '20KG' },
+            '478A': { produto: 'SALSA FLOCOS', embalagem: '20KG' },
+            '480A': { produto: 'PIMENTA CALABRESA', embalagem: '20KG' },
+            '482': { produto: 'COCO RALADO MEDIO', embalagem: '10KG' },
+            '482A': { produto: 'COCO RALADO MEDIO', embalagem: '10KG' },
+            '483': { produto: 'MIX DE FRUTAS', embalagem: '10KG' },
+            '486': { produto: 'FARINHA DE COCO', embalagem: '10KG' },
+            '487': { produto: 'UVA PASSA BRANCA SULAFRICANA', embalagem: '12,50 KG' },
+            '487A': { produto: 'UVA PASSA BRANCA SULAFRICANA', embalagem: '12,50 KG' },
+            '488': { produto: 'COCO FLOCOS', embalagem: '10KG' },
+            '489A': { produto: 'NOZES QUARTILHOS EXTRALIGHT', embalagem: '14KG' },
+            '490': { produto: 'FARINHA DE LINHACA DOURADA', embalagem: '25KG' },
+            '492': { produto: 'ESPINAFRE EM PO', embalagem: '25 KG' },
+            '492A': { produto: 'ESPINAFRE EM PO', embalagem: '25 KG' },
+            '493': { produto: 'CREME DE MILHO', embalagem: '25KG' },
+            '495': { produto: 'AMEIXA COM CAROCO 88/110', embalagem: '10KG' },
+            '495A': { produto: 'AMEIXA COM CAROCO 88/110', embalagem: '10KG' },
+            '496': { produto: 'AVEIA S/C FLOCOS GROSSOS', embalagem: '25KG' },
+            '498': { produto: 'CEREJA SURFRUT SEM CABO', embalagem: '13,20KG' },
+            '499': { produto: 'TRIBULUS TERRESTRE', embalagem: '25KG' },
+            '499A': { produto: 'TRIBULUS TERRESTRE', embalagem: '25KG' },
+            '501': { produto: 'ALHO FRITO', embalagem: '20KG' },
+            '501A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '20KG' },
+            '503': { produto: 'OLEO DE COCO 24X220 ML', embalagem: '4,35KG' },
+            '503A': { produto: 'OLEO DE COCO 24X220 ML', embalagem: '4,35KG' },
+            '506': { produto: 'ANIS ESTRELADO', embalagem: '20KG' },
+            '506A': { produto: 'ANIS ESTRELADO', embalagem: '20KG' },
+            '509': { produto: 'FARINHA DE MACA', embalagem: '10KG' },
+            '509A': { produto: 'FARINHA DE MACA', embalagem: '10KG' },
+            '509N': { produto: 'FARINHA DE MACA 100%', embalagem: '10KG' },
+            '510': { produto: 'AMENDOA TORRADA SEM SAL', embalagem: '10KG' },
+            '511': { produto: 'ALHO DESIDRATADO', embalagem: '20KG' },
+            '513': { produto: 'AVEIA S/C FLOCOS FINOS', embalagem: '25KG' },
+            '514': { produto: 'CASTANHA DE CAJU W4 CRUA', embalagem: '11,34KG' },
+            '515': { produto: 'AMENDOA CRUA S/C 25/27', embalagem: '10KG' },
+            '516': { produto: 'FARINHA DE LINHACA DOURADA', embalagem: '10KG' },
+            '517': { produto: 'CANELA VERA CORTADA 6 CM AA', embalagem: '20 KG' },
+            '517A': { produto: 'CANELA VERA CORTADA 6 CM AA', embalagem: '20 KG' },
+            '518': { produto: 'AMENDOA CRUA S/C 20/22', embalagem: '10KG' },
+            '519': { produto: 'MARACUJA CASCA DESIDRATADO', embalagem: '15KG' },
+            '520': { produto: 'ACUCAR MASCAVO', embalagem: '25KG' },
+            '522': { produto: 'COLAGENO HIDROLISADO', embalagem: '10KG' },
+            '523': { produto: 'FIGO LERIDA N.2', embalagem: '10KG' },
+            '523A': { produto: 'FIGO LERIDA N.2', embalagem: '10KG' },
+            '526': { produto: 'OREGANO', embalagem: '10KG' },
+            '527': { produto: 'MANJERICAO', embalagem: '20KG' },
+            '527A': { produto: 'MANJERICAO', embalagem: '20KG' },
+            '528': { produto: 'COCO RALADO LOW FAT', embalagem: '10KG' },
+            '529': { produto: 'TOMATE DES EM FLOCOS', embalagem: '18 KG' },
+            '529A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '18 KG' },
+            '530': { produto: 'CANELA GRANULADA', embalagem: '25KG' },
+            '530A': { produto: 'CANELA GRANULADA', embalagem: '25KG' },
+            '531': { produto: 'PO DE CRAVO', embalagem: '25KG' },
+            '532': { produto: 'ALPISTE CANADENSE', embalagem: '45,36KG' },
+            '534': { produto: 'FARINHA DE LINHACA MARROM', embalagem: '10KG' },
+            '535': { produto: 'PAPRICA ASTA', embalagem: '140 20KG' },
+            '535A': { produto: 'PAPRICA ASTA', embalagem: '140 20KG' },
+            '536': { produto: 'CRANBERRY FATIADO', embalagem: '11,34KG' },
+            '536A': { produto: 'CRANBERRY FATIADO', embalagem: '11,34KG' },
+            '537': { produto: 'NOZES QUARTZ LIGHT', embalagem: '10KG' },
+            '538': { produto: 'XEREM DE CAJU X2T', embalagem: '22,68KG' },
+            '539': { produto: 'XEREM DE CAJU G2T', embalagem: '22,68KG' },
+            '540': { produto: 'GELATINA', embalagem: '10KG' },
+            '541': { produto: 'COMINHO', embalagem: '95 50KG' },
+            '541A': { produto: 'COMINHO', embalagem: '95 50KG' },
+            '542': { produto: 'AMENDOA CRUA S/C 27/30 USA', embalagem: '22,68KG' },
+            '543': { produto: 'AMENDOA CONFEITADA COLORIDA', embalagem: '10KG' },
+            '544': { produto: 'AMENDOA CONFEITADA BRANCA', embalagem: '10KG' },
+            '545': { produto: 'SOJA EM GRAOS', embalagem: '40KG' },
+            '546': { produto: 'AMENDOIM C/ CASCA RUNNER', embalagem: '25 KG' },
+            '547': { produto: 'COMINHO', embalagem: '95 25KG' },
+            '547A': { produto: 'COMINHO', embalagem: '95 25KG' },
+            '548': { produto: 'AMARANTO GRAO', embalagem: '25KG' },
+            '549': { produto: 'BANANA DESIDRATADA PICADA', embalagem: '19KG' },
+            '550': { produto: 'BANANA DESIDRATADA PICADA', embalagem: '30KG' },
+            '551': { produto: 'BERINJELA DESIDRATADA', embalagem: '45KG' },
+            '552': { produto: 'CEBOLA GRANULADA MEDIA 3-5 MM', embalagem: '18 KG' },
+            '553': { produto: 'WHEY PROTEIN CONCENTRADO 80%', embalagem: '10KG' },
+            '554': { produto: 'AMENDOA TORRADA E SALGADA', embalagem: '10KG' },
+            '555': { produto: 'AMENDOA CRUA S/C 27/30', embalagem: '10KG' },
+            '556': { produto: 'CASTANHA DE CAJU W3 T/S', embalagem: '11,34KG' },
+            '557': { produto: 'CASTANHA DE CAJU SLW1', embalagem: '11,34KG' },
+            '558': { produto: 'CASTANHA DE CAJU W1 TORRADA SEM SAL', embalagem: '11,34KG' },
+            '559': { produto: 'BERINJELA DESIDRATADA', embalagem: '16,47KG' },
+            '560': { produto: 'AVELA S/ CASCA', embalagem: '12,50KG' },
+            '561': { produto: 'AMENDOIM HPS', embalagem: '25KG' },
+            '562': { produto: 'CANELA VERA CORTADA 6 CM', embalagem: '19 KG' },
+            '563': { produto: 'CANELA GRANULADA', embalagem: '50KG' },
+            '563A': { produto: 'CANELA GRANULADA', embalagem: '50KG' },
+            '564': { produto: 'FARINHA DE UVA', embalagem: '10KG' },
+            '565': { produto: 'AMENDOA PALITO SEM PELE', embalagem: '10KG' },
+            '565A': { produto: 'AMENDOA PALITO SEM PELE', embalagem: '10KG' },
+            '566': { produto: 'AMENDOA INTEIRA SEM PELE', embalagem: '10KG' },
+            '566A': { produto: 'AMENDOA INTEIRA SEM PELE', embalagem: '10KG' },
+            '567': { produto: 'CASCA DE UVA', embalagem: '25KG' },
+            '568': { produto: 'CAMOMILA', embalagem: '9KG' },
+            '569': { produto: 'CANELA VERA CORTADA  8 CM A', embalagem: '25 KG' },
+            '570': { produto: 'AMENDOA CRUA S/C 25/27 USA', embalagem: '22,68KG' },
+            '570N': { produto: 'AMENDOA CRUA S/C 25/27 USA', embalagem: '22,68KG' },
+            '571': { produto: 'FARINHA DE COCO BRANCA', embalagem: '10KG' },
+            '572': { produto: 'PEDRA DE SAL ROSA', embalagem: '16KG' },
+            '573': { produto: 'FECULA DE MANDIOCA', embalagem: '25KG' },
+            '574': { produto: 'GRAO DE BICO 11MM', embalagem: '25 KG' },
+            '575': { produto: 'FECULA DE BATATA', embalagem: '25KG' },
+            '576': { produto: 'ERVILHA PARTIDA', embalagem: '45,36KG' },
+            '577': { produto: 'TOMILHO', embalagem: '35 KG' },
+            '578': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '24 KG' },
+            '579': { produto: 'TOMATE SECO DES METADES', embalagem: '10 KG' },
+            '579N': { produto: 'TOMATE SECO DES METADES', embalagem: '10 KG' },
+            '580': { produto: 'COCO FLOCOS', embalagem: '5KG' },
+            '581': { produto: 'CANJICA BRANCA', embalagem: '30KG' },
+            '582': { produto: 'MARACUJA CASCA DESIDRATADO', embalagem: '25KG' },
+            '584': { produto: 'CANJICA BRANCA', embalagem: '50KG' },
+            '585': { produto: 'QUINUA EM PO', embalagem: '25 KG' },
+            '586': { produto: 'SHITAKE INTEIRO', embalagem: '15KG' },
+            '586A': { produto: 'SHITAKE INTEIRO', embalagem: '15 KG' },
+            '587': { produto: 'AMEIXA SEM CAROCO CHILENA 40/50', embalagem: '10 KG' },
+            '587A': { produto: 'AMEIXA SEM CAROCO CHILENA 40/50', embalagem: '10 KG' },
+            '588': { produto: 'AMEIXA SEM CAROCO CHILENA 50/60', embalagem: '10KG' },
+            '588A': { produto: 'AMEIXA SEM CAROCO CHILENA 50/60', embalagem: '10KG' },
+            '589': { produto: 'SOJA EM GRAOS', embalagem: '50KG' },
+            '590': { produto: 'FARINHA DE COCO ESCURA', embalagem: '10KG' },
+            '591': { produto: 'FARINHA DE COCO BRANCA', embalagem: '10KG' },
+            '592A': { produto: 'CRANBERRY INTEIRO IMP', embalagem: '11,34KG' },
+            '593': { produto: 'GENGIBRE', embalagem: '25KG' },
+            '593A': { produto: 'GENGIBRE', embalagem: '25KG' },
+            '594': { produto: 'CEREJA SURFRUT COM CABO', embalagem: '12 KG' },
+            '595A': { produto: 'AMARANTO FLOCOS', embalagem: '15 KG' },
+            '596': { produto: 'FUNGHI', embalagem: '10 KG' },
+            '596A': { produto: 'FUNGHI', embalagem: '10KG' },
+            '597': { produto: 'RESIDUO DE CRAVO', embalagem: '40 KG' },
+            '598': { produto: 'DAMASCO TURCO N.1', embalagem: '15KG' },
+            '598A': { produto: 'DAMASCO TURCO N.1', embalagem: '15KG' },
+            '599': { produto: 'AMENDOA DEFUMADA', embalagem: '10KG' },
+            '600': { produto: 'CEREJA CURICO S/TALO 6X1,80', embalagem: '10,80KG' },
+            '601': { produto: 'AMEIXA COM CAROCO 154/176', embalagem: '10KG' },
+            '602': { produto: 'AMENDOA DEFUMADA', embalagem: '10KG' },
+            '603': { produto: 'AMENDOA CARAMELIZADA', embalagem: '10KG' },
+            '604A': { produto: 'NOZES SEM CASCA PECAN INTEIRA', embalagem: '12KG' },
+            '605': { produto: 'LEITE DE COCO EM PO', embalagem: '25KG' },
+            '605A': { produto: 'LEITE DE COCO EM PO', embalagem: '25KG' },
+            '606': { produto: 'CASTANHA DE CAJU W1', embalagem: '22,68KG' },
+            '607': { produto: 'CASTANHA DE CAJU W1 T/S', embalagem: '22,68KG' },
+            '608': { produto: 'AVEIA S/CASCA', embalagem: '30KG' },
+            '609': { produto: 'GRAO DE BICO 8MM', embalagem: '25 KG' },
+            '610': { produto: 'AMENDOIM HPS', embalagem: '50KG' },
+            '611': { produto: 'TOMATE DES EM FLOCOS', embalagem: '10 KG' },
+            '611A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '10 KG' },
+            '612': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '10KG' },
+            '612A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '10KG' },
+            '613': { produto: 'CASTANHA DE CAJU W1 TORRADA SEM SAL', embalagem: '22,68KG' },
+            '614A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '19 KG' },
+            '615': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '10KG' },
+            '615A': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '10KG' },
+            '616A': { produto: 'DAMASCO TURCO', embalagem: '12,5KG' },
+            '617A': { produto: 'TAMARA FRESCA JUMBO', embalagem: '5KG' },
+            '618A': { produto: 'CEREJA CURICO C/TALO 6X1,65', embalagem: '9,90KG' },
+            '619A': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '23 KG' },
+            '620': { produto: 'BERINJELA PO', embalagem: '25KG' },
+            '621': { produto: 'MARACUJA PO', embalagem: '30KG' },
+            '622': { produto: 'BANANA PO', embalagem: '30KG' },
+            '623': { produto: 'CASTANHA DE CAJU W1 T/S', embalagem: '20KG' },
+            '624': { produto: 'CASTANHA DE CAJU W1 TORRADA SEM SAL', embalagem: '20KG' },
+            '625': { produto: 'CASTANHA DE CAJU W1 CRUA', embalagem: '20KG' },
+            '626A': { produto: 'AMENDOA FATIADA', embalagem: '12,50KG' },
+            '627A': { produto: 'AMENDOA CRUA S/C 20/22 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '628': { produto: 'FARINHA DE GRAO DE BICO', embalagem: '10KG' },
+            '629': { produto: 'FARELO DE AVEIA', embalagem: '22,68KG' },
+            '630': { produto: 'GRAO DE BICO 7MM', embalagem: '50 KG' },
+            '631': { produto: 'BLUEBERRY', embalagem: '11,34KG' },
+            '631A': { produto: 'BLUEBERRY', embalagem: '11,34KG' },
+            '632A': { produto: 'PISTACHE CRU', embalagem: '13,60 KG' },
+            '633': { produto: 'SHITAKE INTEIRO', embalagem: '16 KG' },
+            '633A': { produto: 'CEREJA ROCOFRUT SEM CABO 6X2,20', embalagem: '13,20KG' },
+            '634': { produto: 'FARINHA DE AVEIA', embalagem: '25KG' },
+            '635': { produto: 'ERVA DOCE', embalagem: '40KG' },
+            '636A': { produto: 'NOZES C/C - 36 +', embalagem: '25KG' },
+            '637': { produto: 'UVA SECA', embalagem: '25KG' },
+            '638': { produto: 'FARINHA DE ARROZ', embalagem: '30KG' },
+            '639': { produto: 'GRAO DE BICO 8MM', embalagem: '50 KG' },
+            '640A': { produto: 'AMENDOA TORRADA E SALGADA', embalagem: '11KG' },
+            '641': { produto: 'TOMATE DES EM FLOCOS', embalagem: '15 KG' },
+            '641A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '15 KG' },
+            '642': { produto: 'PISTACHE CRU SEM CASCA', embalagem: '10 KG' },
+            '642A': { produto: 'PISTACHE CRU SEM CASCA', embalagem: '10 KG' },
+            '643A': { produto: 'PISTACHE T/S', embalagem: '9 KG' },
+            '644': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '12,50KG' },
+            '644A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '12,50KG' },
+            '645': { produto: 'QUINUA VERMELHA GRAO PERUANA', embalagem: '25 KG' },
+            '645A': { produto: 'QUINUA VERMELHA GRAO PERUANA', embalagem: '25 KG' },
+            '646A': { produto: 'AMENDOA S/C USA', embalagem: '11,34KG' },
+            '647': { produto: 'LINHACA MARROM', embalagem: '30KG' },
+            '648': { produto: 'PO DE CRAVO', embalagem: '35KG' },
+            '649A': { produto: 'ESPINAFRE EM PO', embalagem: '24 KG' },
+            '650A': { produto: 'BANANA PASSA IMP', embalagem: '10KG' },
+            '651': { produto: 'AMENDOA CONFEITADA BRANCA', embalagem: '10KG' },
+            '652': { produto: 'COCO DESIDRATADO CHIPS', embalagem: '10KG' },
+            '652A': { produto: 'COCO DESIDRATADO CHIPS', embalagem: '10KG' },
+            '653': { produto: 'FOLHA DE SENE', embalagem: '50 KG' },
+            '653A': { produto: 'FOLHA DE SENE', embalagem: '50 KG' },
+            '654': { produto: 'GIRASSOL MIUDO', embalagem: '40KG' },
+            '655': { produto: 'LEITE DE COCO EM PO', embalagem: '15KG' },
+            '655A': { produto: 'LEITE DE COCO EM PO', embalagem: '15KG' },
+            '656': { produto: 'GRAO DE BICO 9MM', embalagem: '25KG' },
+            '657': { produto: 'TAMARA COM CAROCO', embalagem: '5KG' },
+            '657A': { produto: 'TAMARA COM CAROCO', embalagem: '5KG' },
+            '658A': { produto: 'NOZES SEM CASCA PECAN INTEIRA', embalagem: '10KG' },
+            '659A': { produto: 'NOZES SEM CASCA PECAN PICADAS', embalagem: '10KG' },
+            '660': { produto: 'FARINHA DE BANANA', embalagem: '30KG' },
+            '661': { produto: 'QUINUA PRETA GRAO PERUANA', embalagem: '25 KG' },
+            '661A': { produto: 'QUINUA PRETA GRAO PERUANA', embalagem: '25 KG' },
+            '662': { produto: 'FEIJAO BRANCO', embalagem: '25KG' },
+            '663': { produto: 'BERINJELA PO', embalagem: '20KG' },
+            '664': { produto: 'XYLITOL', embalagem: '25KG' },
+            '664A': { produto: 'XYLITOL', embalagem: '25KG' },
+            '665': { produto: 'FARINHA DE CASTANHA DO PARA', embalagem: '10KG' },
+            '666A': { produto: 'SAL ROSA FINO', embalagem: '25KG' },
+            '667A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '11,34KG' },
+            '668': { produto: 'AMENDOA CRUA S/C 23/25 USA', embalagem: '22,68KG' },
+            '668A': { produto: 'AMENDOA CRUA S/C 23/25 USA', embalagem: '22,68KG' },
+            '669': { produto: 'GERGELIM COM CASCA NAC', embalagem: '25KG' },
+            '670': { produto: 'PAPRICA ASTA', embalagem: '120 20KG' },
+            '670A': { produto: 'PAPRICA ASTA', embalagem: '120 20KG' },
+            '671A': { produto: 'SAL ROSA GROSSO', embalagem: '25KG' },
+            '672': { produto: 'NOZES QUARTZ EXTRALIGHT', embalagem: '12KG' },
+            '672A': { produto: 'NOZES QUARTZ EXTRALIGHT', embalagem: '12KG' },
+            '673A': { produto: 'SEMENTE DE CHIA', embalagem: '20KG' },
+            '674': { produto: 'SALSA EM PO', embalagem: '10KG' },
+            '675': { produto: 'PIMENTA PRETA QUEBRADINHA', embalagem: '40KG' },
+            '676': { produto: 'CEREJA CHILEFOOD SEM CABO 6X2,20', embalagem: '13,20KG' },
+            '676A': { produto: 'CEREJA CHILEFOOD SEM CABO 6X2,20', embalagem: '13,20KG' },
+            '677': { produto: 'LOURO TRITURADO', embalagem: '50KG' },
+            '678': { produto: 'MOSTARDA AMARELA CANADENSE', embalagem: '45,36KG' },
+            '678A': { produto: 'MOSTARDA AMARELA CANADENSE', embalagem: '45,36KG' },
+            '679': { produto: 'COMINHO', embalagem: '99 25KG' },
+            '679A': { produto: 'COMINHO', embalagem: '99 25KG' },
+            '680': { produto: 'SEMENTE DE ABOBORA CRUA S/CASCA A', embalagem: '25 KG' },
+            '680A': { produto: 'SEMENTE DE ABOBORA CRUA S/CASCA A', embalagem: '25 KG' },
+            '681': { produto: 'ENDRO', embalagem: '50 KG' },
+            '681A': { produto: 'ENDRO', embalagem: '50 KG' },
+            '682': { produto: 'ENDRO PARTIDO', embalagem: '50KG' },
+            '682A': { produto: 'ENDRO PARTIDO', embalagem: '50KG' },
+            '683': { produto: 'OREGANO PERUANO', embalagem: '12,50KG' },
+            '683A': { produto: 'OREGANO PERUANO', embalagem: '12,50KG' },
+            '684': { produto: 'MARACUJA PO', embalagem: '24,94KG' },
+            '685A': { produto: 'VEGETAIS MIX CHIPS', embalagem: '5 KG' },
+            '686A': { produto: 'DAMASCO CUBOS', embalagem: '12,50 KG' },
+            '687A': { produto: 'PEPITA GIRASSOL T/S', embalagem: '10 KG' },
+            '688A': { produto: 'ERVILHA INTEIRA', embalagem: '25 KG' },
+            '689': { produto: 'CRANBERRY FATIADO', embalagem: '10KG' },
+            '689A': { produto: 'CRANBERRY FATIADO', embalagem: '10KG' },
+            '690A': { produto: 'MILHO TOSTADO TRADICIONAL', embalagem: '20KG' },
+            '691A': { produto: 'MILHO TOSTADO SABOR PIZZA', embalagem: '20KG' },
+            '692A': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '20KG' },
+            '693A': { produto: 'FARINHA DE GRAO DE BICO', embalagem: '20KG' },
+            '694': { produto: 'GENGIBRE', embalagem: '20KG' },
+            '695A': { produto: 'NOZES QUARTZ EXTRALIGHT', embalagem: '11KG' },
+            '696A': { produto: 'SHITAKE INTEIRO', embalagem: '16 KG' },
+            '697A': { produto: 'PISTACHE CRU', embalagem: '13,608 KG' },
+            '698': { produto: 'FARINHA DE BERINJELA', embalagem: '20KG' },
+            '699': { produto: 'GINSENG', embalagem: '25KG' },
+            '700': { produto: 'FUNGHI', embalagem: '15KG' },
+            '700A': { produto: 'FUNGHI', embalagem: '15KG' },
+            '701A': { produto: 'MACADAMIA T/S', embalagem: '10KG' },
+            '702A': { produto: 'MACADAMIA NATURAL', embalagem: '10KG' },
+            '703A': { produto: 'AMENDOA TORRADA E SALGADA', embalagem: '10KG' },
+            '704': { produto: 'CASTANHA DE CAJU W4 TORRADA SEM SAL', embalagem: '11,34KG' },
+            '705': { produto: 'UVA SECA', embalagem: '26KG' },
+            '706': { produto: 'AMENDOA CONFEITADA COLORIDA', embalagem: '10KG' },
+            '707A': { produto: 'DAMASCO CUBOS', embalagem: '5 KG' },
+            '708': { produto: 'PISTACHE CRU', embalagem: '11,34 KG' },
+            '708A': { produto: 'PISTACHE CRU', embalagem: '11,34 KG' },
+            '709': { produto: 'FARINHA DE FEIJAO BRANCO', embalagem: '10KG' },
+            '710': { produto: 'AMENDOA CRUA S/C 20/22 CARMEL CHILENA', embalagem: '10KG' },
+            '710A': { produto: 'AMENDOA CRUA S/C 20/22 CARMEL CHILENA', embalagem: '10KG' },
+            '711': { produto: 'AMENDOA CRUA S/C 27/30 NON PAREIL CHILENA', embalagem: '10KG' },
+            '711A': { produto: 'AMENDOA CRUA S/C 27/30 NON PAREIL CHILENA', embalagem: '10KG' },
+            '712': { produto: 'COCO FLOCOS', embalagem: '22,68KG' },
+            '712A': { produto: 'COCO FLOCOS', embalagem: '22,68KG' },
+            '713': { produto: 'SHITAKE FATIADO', embalagem: '11KG' },
+            '713A': { produto: 'SHITAKE FATIADO', embalagem: '11KG' },
+            '714': { produto: 'SHITAKE INTEIRO', embalagem: '23KG' },
+            '715A': { produto: 'CHIPS MIX FRUTAS', embalagem: '8,40KG' },
+            '716A': { produto: 'AMENDOA INTEIRA SEM PELE', embalagem: '12,50KG' },
+            '717': { produto: 'SALSA FLOCOS', embalagem: '25KG' },
+            '717A': { produto: 'SALSA FLOCOS', embalagem: '25KG' },
+            '718A': { produto: 'COCO DESIDRATADO CHIPS TOSTADO', embalagem: '10KG' },
+            '719': { produto: 'MARACUJA CASCA DESIDRATADO', embalagem: '20KG' },
+            '720': { produto: 'AMENDOA CRUA S/C 23/25 NON PAREIL CHILENA', embalagem: '10KG' },
+            '720A': { produto: 'AMENDOA CRUA S/C 23/25 NON PAREIL CHILENA', embalagem: '10KG' },
+            '721A': { produto: 'AMENDOA MOSTARDA E MEL', embalagem: '10KG' },
+            '722A': { produto: 'AMENDOA PIMENTA COM LIMAO', embalagem: '10KG' },
+            '723A': { produto: 'AMENDOA TOMATE SECO E QUEIJO', embalagem: '10KG' },
+            '724': { produto: 'RESIDUO DE CRAVO', embalagem: '35KG' },
+            '725': { produto: 'FARINHA DE COCO BRANCA', embalagem: '5KG' },
+            '726': { produto: 'COCO RALADO MEDIO', embalagem: '25KG' },
+            '726A': { produto: 'COCO RALADO MEDIO', embalagem: '25KG' },
+            '727': { produto: 'GRANOLA COM ACUCAR', embalagem: '10KG' },
+            '728': { produto: 'GRANOLA SUPER FRUTAS', embalagem: '10KG' },
+            '729': { produto: 'NOZES SEM CASCA PECAN INTEIRA NAC', embalagem: '12KG' },
+            '730': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '730A': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '731': { produto: 'MILHO TOSTADO TRADICIONAL', embalagem: '18KG' },
+            '731A': { produto: 'MILHO TOSTADO TRADICIONAL', embalagem: '18KG' },
+            '732': { produto: 'GERGELIM PRETO NAC', embalagem: '25 KG' },
+            '733': { produto: 'GERGELIM PRETO NAC', embalagem: '50 KG' },
+            '734': { produto: 'PIMENTA ROSA GRAO', embalagem: '5KG' },
+            '735': { produto: 'DETOX VERDE', embalagem: '5KG' },
+            '736': { produto: 'NOZES QUARTILHOS EXTRALIGHT', embalagem: '14KG' },
+            '736A': { produto: 'NOZES QUARTILHOS EXTRALIGHT', embalagem: '14KG' },
+            '737': { produto: 'NOZES QUARTZ EXTRALIGHT 60/40', embalagem: '12KG' },
+            '737A': { produto: 'NOZES QUARTZ EXTRALIGHT 60/40', embalagem: '12KG' },
+            '738': { produto: 'FUNGHI', embalagem: '18KG' },
+            '738A': { produto: 'FUNGHI', embalagem: '18KG' },
+            '739': { produto: 'ACUCAR DEMERARA', embalagem: '25KG' },
+            '740': { produto: 'GERGELIM PRETO IMP', embalagem: '25KG' },
+            '740A': { produto: 'GERGELIM PRETO IMP', embalagem: '25KG' },
+            '741': { produto: 'PIMENTA CAIENA', embalagem: '5KG' },
+            '742': { produto: 'SALVIA', embalagem: '15 KG' },
+            '742A': { produto: 'SALVIA', embalagem: '15 KG' },
+            '743': { produto: 'CEREJA CURICO SEM CABO 6X1,80', embalagem: '10,80KG' },
+            '743A': { produto: 'CEREJA CURICO SEM CABO 6X1,80', embalagem: '10,80KG' },
+            '744': { produto: 'CEREJA CURICO COM CABO 6X1,65', embalagem: '9,90KG' },
+            '744A': { produto: 'CEREJA CURICO COM CABO 6X1,65', embalagem: '9,90KG' },
+            '745': { produto: 'MIX DE VEGETAIS CHIPS', embalagem: '5KG' },
+            '745A': { produto: 'MIX DE VEGETAIS CHIPS', embalagem: '5KG' },
+            '746A': { produto: 'FIGO SOLTO LERIDA N.2', embalagem: '15KG' },
+            '747': { produto: 'FARINHA DE BATATA DOCE', embalagem: '10KG' },
+            '748': { produto: 'NOZES COM CASCA 32/34 CHILEFOOD', embalagem: '25KG' },
+            '749': { produto: 'NOZES COM CASCA 34/36 CHILEFOOD', embalagem: '25KG' },
+            '749A': { produto: 'NOZES COM CASCA 34/36', embalagem: '25KG' },
+            '750': { produto: 'NOZES COM CASCA 36 +  CHILEFOOD', embalagem: '25KG' },
+            '751': { produto: 'NOZ-MACADAMIA NATURAL', embalagem: '10KG' },
+            '752': { produto: 'NOZ-MACADAMIA COM SAL', embalagem: '10KG' },
+            '753': { produto: 'SAL MARINHO', embalagem: '25KG' },
+            '754': { produto: 'PAPRICA DEFUMADA', embalagem: '10KG' },
+            '755': { produto: 'SACHA INCHI', embalagem: '10KG' },
+            '756A': { produto: 'CANELA VERA CORTADA 45 CM AA', embalagem: '20KG' },
+            '757': { produto: 'SHITAKE INTEIRO', embalagem: '18KG' },
+            '757A': { produto: 'SHITAKE INTEIRO', embalagem: '18KG' },
+            '758': { produto: 'AMENDOIM CROCANTE SALSA E CEBOLA', embalagem: '20KG' },
+            '759': { produto: 'AMENDOIM CROCANTE NATURAL', embalagem: '20KG' },
+            '760': { produto: 'AMENDOIM  GRAUDO TORRADO E SALGADO', embalagem: '20KG' },
+            '761': { produto: 'AMENDOIM CROCANTE OVINHO', embalagem: '10KG' },
+            '762': { produto: 'GRANOLA SEM ACUCAR', embalagem: '10KG' },
+            '763A': { produto: 'GIRASSOL PELADO S/CASCA', embalagem: '22,68KG' },
+            '764': { produto: 'DAMASCO JUMBO', embalagem: '15KG' },
+            '764A': { produto: 'DAMASCO JUMBO', embalagem: '15KG' },
+            '765A': { produto: 'PIMENTA CALABRESA 100% PO PURA', embalagem: '10 KG' },
+            '766A': { produto: 'PISTACHE T/S', embalagem: '10 KG' },
+            '767': { produto: 'PSYLLIUM', embalagem: '25KG' },
+            '767A': { produto: 'PSYLLIUM', embalagem: '25KG' },
+            '768A': { produto: 'PERAS SECAS', embalagem: '5KG' },
+            '769A': { produto: 'PESSEGOS SECOS SEM CAROCO', embalagem: '5KG' },
+            '770A': { produto: 'AMENDOA TORRADA SEM SAL', embalagem: '10KG' },
+            '771': { produto: 'AÇAFRAO (CURCUMA) PO', embalagem: '25KG' },
+            '772': { produto: 'NOZES QUARTZ LIGHT', embalagem: '12KG' },
+            '772A': { produto: 'NOZES QUARTZ LIGHT', embalagem: '12KG' },
+            '773': { produto: 'PISTACHE CRU S/CASCA 100% INTEIROS', embalagem: '11,34 KG' },
+            '773A': { produto: 'PISTACHE CRU S/CASCA 100% INTEIROS', embalagem: '11,34 KG' },
+            '774': { produto: 'PISTACHE T/S USA', embalagem: '11,34 KG' },
+            '774A': { produto: 'PISTACHE T/S USA', embalagem: '11,34 KG' },
+            '775': { produto: 'BLUEBERRY INTEIRO', embalagem: '10KG' },
+            '775A': { produto: 'BLUEBERRY INTEIRO', embalagem: '10KG' },
+            '776': { produto: 'AMENDOA LAMINADA', embalagem: '11,34KG' },
+            '776A': { produto: 'AMENDOA LAMINADA', embalagem: '11,34KG' },
+            '777': { produto: 'CRANBERRY FATIADO IMP', embalagem: '11,34KG' },
+            '777A': { produto: 'CRANBERRY FATIADO IMP', embalagem: '11,34KG' },
+            '778': { produto: 'NOZES MARIP. LIGHT', embalagem: '10KG' },
+            '778A': { produto: 'NOZES MARIP. LIGHT', embalagem: '10KG' },
+            '779': { produto: 'NOZES QUARTZ EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '779A': { produto: 'NOZES QUARTZ EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '780': { produto: 'NOZES QUARTILHOS EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '780A': { produto: 'NOZES QUARTILHOS EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '781': { produto: 'NOZES MARIP. EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '781A': { produto: 'NOZES MARIP. EXTRALIGHT MANUAL', embalagem: '10KG' },
+            '782': { produto: 'TOMATE DES EM FLOCOS', embalagem: '22 KG' },
+            '782A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '22 KG' },
+            '783': { produto: 'AMEIXA COM CAROCO 154/176', embalagem: '10KG' },
+            '783A': { produto: 'AMEIXA COM CAROCO', embalagem: '10KG' },
+            '784': { produto: 'MIX ANTI STRESS', embalagem: '10KG' },
+            '785': { produto: 'MIX SEMENTES', embalagem: '10KG' },
+            '786': { produto: 'MIX ORIGINAL', embalagem: '10KG' },
+            '787': { produto: 'AMENDOA CRUA S/C 20/22 NON PAREIL CHILENA', embalagem: '10KG' },
+            '787A': { produto: 'AMENDOA CRUA S/C 20/22 NON PAREIL CHILENA', embalagem: '10KG' },
+            '788': { produto: 'PEPITA GIRASSOL', embalagem: '22,68KG' },
+            '788A': { produto: 'PEPITA GIRASSOL', embalagem: '22,68KG' },
+            '789': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '24 KG' },
+            '789A': { produto: 'ALHO DESIDRATADO FLOCOS', embalagem: '24 KG' },
+            '791': { produto: 'CANELA 100% PO PURA', embalagem: '10KG' },
+            '793A': { produto: 'GENGIBRE 100% PO PURO', embalagem: '10 KG' },
+            '794': { produto: 'CRAVO FLOR', embalagem: '25KG' },
+            '795A': { produto: 'GENGIBRE RAIZ IMP', embalagem: '40KG' },
+            '796': { produto: 'AMENDOA PALITO', embalagem: '10KG' },
+            '796A': { produto: 'AMENDOA PALITO', embalagem: '10KG' },
+            '797': { produto: 'AMENDOIM TORRADO SEM CASCA COM SAL', embalagem: '20KG' },
+            '798': { produto: 'AMENDOIM CROCANTE PICANTE', embalagem: '20KG' },
+            '799': { produto: 'LOURO SELECIONADO', embalagem: '10KG' },
+            '799A': { produto: 'LOURO SELECIONADO', embalagem: '10KG' },
+            '800': { produto: 'CALDO DE GALINHA', embalagem: '25KG' },
+            '801': { produto: 'MACA EM RODELA DESIDRATADA', embalagem: '10KG' },
+            '801A': { produto: 'MACA EM RODELA DESIDRATADA', embalagem: '10KG' },
+            '802': { produto: 'MORANGO', embalagem: '12,50KG' },
+            '802A': { produto: 'MORANGO', embalagem: '12,50KG' },
+            '803': { produto: 'KIWI', embalagem: '10KG' },
+            '803A': { produto: 'KIWI', embalagem: '10KG' },
+            '804': { produto: 'PESSEGO GLACIADO', embalagem: '12,50KG' },
+            '804A': { produto: 'PESSEGO GLACIADO', embalagem: '12,50KG' },
+            '805': { produto: 'PERA GLACIADA', embalagem: '12,50KG' },
+            '805A': { produto: 'PERA GLACIADA', embalagem: '12,50KG' },
+            '806': { produto: 'CASTANHA DO PARA SEM CASCA FERIDA', embalagem: '20KG' },
+            '807': { produto: 'NOZES QUARTILHOS EXTRALIGHT', embalagem: '10KG' },
+            '807A': { produto: 'NOZES QUARTILHOS EXTRALIGHT', embalagem: '10KG' },
+            '808': { produto: 'GINSENG', embalagem: '15KG' },
+            '809': { produto: 'XEREM DE CAJU G2T', embalagem: '11,34KG' },
+            '810': { produto: 'TEMPERO EDU GUEDES', embalagem: '10KG' },
+            '811': { produto: 'ERYTHRITOL', embalagem: '25KG' },
+            '811A': { produto: 'ERYTHRITOL', embalagem: '25KG' },
+            '812': { produto: 'MIX DE CEREAIS', embalagem: '10KG' },
+            '813': { produto: 'SPIRULINA PO', embalagem: '25KG' },
+            '813A': { produto: 'SPIRULINA PO', embalagem: '25KG' },
+            '814': { produto: 'FARINHA DE MACA 100%', embalagem: '20KG' },
+            '814A': { produto: 'FARINHA DE MACA 100%', embalagem: '20KG' },
+            '815': { produto: 'AMENDOIM TORRADO SEM CASCA SEM SAL', embalagem: '25KG' },
+            '816': { produto: 'PSYLLIUM', embalagem: '15KG' },
+            '816A': { produto: 'PSYLLIUM', embalagem: '15KG' },
+            '817': { produto: 'AMENDOA CRUA S/C 25/27 NON PAREIL CHILENA', embalagem: '10KG' },
+            '817A': { produto: 'AMENDOA CRUA S/C 25/27 NON PAREIL CHILENA', embalagem: '10KG' },
+            '818': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL CHILENA', embalagem: '10KG' },
+            '818A': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL CHILENA', embalagem: '10KG' },
+            '819': { produto: 'AMENDOIM TORRADO SEM CASCA COM SAL', embalagem: '25KG' },
+            '820': { produto: 'MIX TROPICAL', embalagem: '10KG' },
+            '821': { produto: 'MIX FRUTAS SECAS NOBRE', embalagem: '10KG' },
+            '822': { produto: 'FARINHA DE QUINUA', embalagem: '12,50KG' },
+            '822A': { produto: 'FARINHA DE QUINUA', embalagem: '12,50KG' },
+            '823': { produto: 'ZIMBRO', embalagem: '25KG' },
+            '823A': { produto: 'ZIMBRO', embalagem: '25KG' },
+            '824': { produto: 'AVELA TORRADA', embalagem: '10KG' },
+            '824A': { produto: 'AVELA TORRADA', embalagem: '10KG' },
+            '825': { produto: 'AZEITONA PRETA SEM CAROCO', embalagem: '14KG' },
+            '825A': { produto: 'AZEITONA PRETA SEM CAROCO', embalagem: '14KG' },
+            '826': { produto: 'AZEITONA VERDE SEM CAROCO', embalagem: '14KG' },
+            '826A': { produto: 'AZEITONA VERDE SEM CAROCO', embalagem: '14KG' },
+            '827': { produto: 'BANANA CHIPS DOCE', embalagem: '12KG' },
+            '828': { produto: 'ABACAXI DESIDRATADO', embalagem: '5KG' },
+            '829': { produto: 'PIMENTA CALABRESA', embalagem: '25KG' },
+            '829A': { produto: 'PIMENTA CALABRESA', embalagem: '25KG' },
+            '830': { produto: 'FARINHA DE COCO', embalagem: '25KG' },
+            '830A': { produto: 'FARINHA DE COCO', embalagem: '25KG' },
+            '831': { produto: 'ESTRAGAO', embalagem: '10KG' },
+            '831A': { produto: 'ESTRAGAO', embalagem: '10KG' },
+            '832': { produto: 'FARINHA DE COCO', embalagem: '22,68KG' },
+            '832A': { produto: 'FARINHA DE COCO', embalagem: '22,68KG' },
+            '833': { produto: 'SEMENTE DE CHIA', embalagem: '25KG' },
+            '834': { produto: 'CASTANHA DE CAJU CARAMELIZADA', embalagem: '10KG' },
+            '835': { produto: 'AMEIXA SEM CAROCO 154/176', embalagem: '10KG' },
+            '835A': { produto: 'AMEIXA SEM CAROCO 154/176', embalagem: '10KG' },
+            '836': { produto: 'AMENDOA CRUA S/C 23/25 CARMEL CHILENA', embalagem: '10KG' },
+            '836A': { produto: 'AMENDOA CRUA S/C 23/25 CARMEL CHILENA', embalagem: '10KG' },
+            '837': { produto: 'TOMATE SECO DES METADES', embalagem: '10 KG' },
+            '837A': { produto: 'TOMATE SECO DES METADES', embalagem: '10 KG' },
+            '838': { produto: 'CAMOMILA IMPORTADA', embalagem: '11 KG' },
+            '838A': { produto: 'CAMOMILA IMPORTADA', embalagem: '11 KG' },
+            '839': { produto: 'BISCOITO DE ARROZ BBQ', embalagem: '5KG' },
+            '839A': { produto: 'BISCOITO DE ARROZ BBQ', embalagem: '5KG' },
+            '840': { produto: 'BISCOITO DE ARROZ S/PIMENTA', embalagem: '5KG' },
+            '840A': { produto: 'BISCOITO DE ARROZ S/PIMENTA', embalagem: '5KG' },
+            '841': { produto: 'BISCOITO DE ARROZ C/PIMENTA', embalagem: '5KG' },
+            '841A': { produto: 'BISCOITO DE ARROZ C/PIMENTA', embalagem: '5KG' },
+            '842': { produto: 'ERVILHA C/ WASABI', embalagem: '10KG' },
+            '842A': { produto: 'ERVILHA C/ WASABI', embalagem: '10KG' },
+            '843': { produto: 'AMENDOIM TORRADO SEM CASCA SEM SAL', embalagem: '20KG' },
+            '844': { produto: 'MILHO TOSTADO SABOR WASABI', embalagem: '18KG' },
+            '844A': { produto: 'MILHO TOSTADO SABOR WASABI', embalagem: '18KG' },
+            '845': { produto: 'MILHO TOSTADO SABOR BBQ', embalagem: '18KG' },
+            '845A': { produto: 'MILHO TOSTADO SABOR BBQ', embalagem: '18KG' },
+            '846': { produto: 'MILHO TOSTADO SABOR LIMAO E PIMENTA', embalagem: '18KG' },
+            '846A': { produto: 'MILHO TOSTADO SABOR LIMAO E PIMENTA', embalagem: '18KG' },
+            '847': { produto: 'AMENDOA CRUA S/C 25/27 CARMEL CHILENA', embalagem: '10KG' },
+            '847A': { produto: 'AMENDOA CRUA S/C 25/27 CARMEL CHILENA', embalagem: '10KG' },
+            '848': { produto: 'PIMENTA JAMAICA GRAO', embalagem: '40KG' },
+            '849': { produto: 'DAMASCO TURCO N.1', embalagem: '5KG' },
+            '849A': { produto: 'DAMASCO TURCO N.1', embalagem: '5KG' },
+            '850': { produto: 'BANANA CHIPS SALGADA', embalagem: '12KG' },
+            '851': { produto: 'MIX DE VEGETAIS CHIPS', embalagem: '5KG' },
+            '851A': { produto: 'MIX DE VEGETAIS CHIPS PREMIUM', embalagem: '5KG' },
+            '852': { produto: 'BATATA DOCE CHIPS', embalagem: '5KG' },
+            '852A': { produto: 'BATATA DOCE CHIPS', embalagem: '5KG' },
+            '853': { produto: 'BATATA DOCE ROXA CHIPS', embalagem: '5KG' },
+            '853A': { produto: 'BATATA DOCE ROXA CHIPS', embalagem: '5KG' },
+            '854': { produto: 'CENOURA CHIPS', embalagem: '4KG' },
+            '854A': { produto: 'CENOURA CHIPS', embalagem: '4KG' },
+            '855': { produto: 'SHITAKE CHIPS FATIADO', embalagem: '4KG' },
+            '855A': { produto: 'SHITAKE CHIPS FATIADO', embalagem: '4KG' },
+            '856': { produto: 'CEREJA', embalagem: '12,50KG' },
+            '856A': { produto: 'CEREJA GLACIADA', embalagem: '12,50KG' },
+            '857': { produto: 'FRUTA CRISTALIZADA FIGO', embalagem: '5KG' },
+            '858': { produto: 'FRUTA CRISTALIZADA LIMAO EM TIRAS', embalagem: '5KG' },
+            '859': { produto: 'WHEY PROTEIN CONCENTRADO 80%', embalagem: '20KG' },
+            '860': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '22 KG' },
+            '860A': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '22 KG' },
+            '861': { produto: 'AMEIXA SEM CAROCO 132/154', embalagem: '10KG' },
+            '861A': { produto: 'AMEIXA SEM CAROCO 132/154', embalagem: '10KG' },
+            '862': { produto: 'CRANBERRY INTEIRO IMP', embalagem: '11,34KG' },
+            '862A': { produto: 'CRANBERRY INTEIRO IMP', embalagem: '11,34KG' },
+            '863': { produto: 'COCO RALADO FINO', embalagem: '22,68KG' },
+            '863A': { produto: 'COCO RALADO FINO', embalagem: '22,68KG' },
+            '864': { produto: 'CEREJA CHILEFOOD COM CABO 6X2,00', embalagem: '12KG' },
+            '864A': { produto: 'CEREJA CHILEFOOD COM CABO 6X2,00', embalagem: '12KG' },
+            '865': { produto: 'ACUCAR DEMERARA', embalagem: '20KG' },
+            '866': { produto: 'CALDO DE GALINHA', embalagem: '10KG' },
+            '867': { produto: 'XYLITOL', embalagem: '25KG' },
+            '868': { produto: 'ERYTHRITOL', embalagem: '25KG' },
+            '870': { produto: 'NOZES SEM CASCA PECAN INTEIRA NAC', embalagem: '10KG' },
+            '871': { produto: 'AMENDOIM XEREM', embalagem: '20KG' },
+            '872': { produto: 'GERGELIM TORRADO COM CASCA NAC.', embalagem: '10 KG' },
+            '873': { produto: 'COENTRO GRAO ESPANHOL', embalagem: '25KG' },
+            '873A': { produto: 'COENTRO GRAO ESPANHOL', embalagem: '25KG' },
+            '874': { produto: 'AMENDOA CRUA S/C 18/20 CARMEL CHILENA', embalagem: '10KG' },
+            '874A': { produto: 'AMENDOA CRUA S/C 18/20 CARMEL CHILENA', embalagem: '10KG' },
+            '875': { produto: 'SHITAKE INTEIRO', embalagem: '17KG' },
+            '875A': { produto: 'SHITAKE INTEIRO', embalagem: '17KG' },
+            '876': { produto: 'PIMENTAO AMARELO DES EM FLOCOS', embalagem: '20 KG' },
+            '876A': { produto: 'PIMENTAO AMARELO DES EM FLOCOS', embalagem: '20 KG' },
+            '877': { produto: 'MILHO DE PIPOCA', embalagem: '30KG' },
+            '878': { produto: 'COENTRO 100% PO PURO', embalagem: '10KG' },
+            '879': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '11,34KG' },
+            '879A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '11,34KG' },
+            '880': { produto: 'NOZES MARIP. EXTRALIGHT 70/30', embalagem: '10KG' },
+            '880A': { produto: 'NOZES MARIP. EXTRALIGHT', embalagem: '10KG' },
+            '881': { produto: 'NOZ-MACADAMIA COM SAL', embalagem: '10KG' },
+            '882': { produto: 'FAVA TOSTADA SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '882A': { produto: 'FAVA TOSTADA SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '883': { produto: 'GRAO DE BICO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '883A': { produto: 'GRAO DE BICO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '884': { produto: 'SALVIA', embalagem: '20 KG' },
+            '884A': { produto: 'SALVIA', embalagem: '20 KG' },
+            '885': { produto: 'QUINUA GRAO', embalagem: '20 KG' },
+            '885A': { produto: 'QUINUA GRAO', embalagem: '20 KG' },
+            '886': { produto: 'QUINUA GRAO PRETA', embalagem: '20 KG' },
+            '886A': { produto: 'QUINUA GRAO PRETA', embalagem: '20 KG' },
+            '887': { produto: 'QUINUA GRAO VERMELHA', embalagem: '20 KG' },
+            '887A': { produto: 'QUINUA GRAO VERMELHA', embalagem: '20 KG' },
+            '888': { produto: 'QUINUA EM FLOCOS', embalagem: '20 KG' },
+            '888A': { produto: 'QUINUA EM FLOCOS', embalagem: '20 KG' },
+            '889': { produto: 'PIMENTA PRETA 100% PO PURA', embalagem: '10KG' },
+            '890': { produto: 'NOZES COM CASCA 30/32', embalagem: '25KG' },
+            '890A': { produto: 'NOZES COM CASCA', embalagem: '25KG' },
+            '891': { produto: 'PAINCO', embalagem: '25KG' },
+            '892': { produto: 'NOZES COM CASCA 32/34', embalagem: '25KG' },
+            '892A': { produto: 'NOZES COM CASCA 32/34', embalagem: '25KG' },
+            '893': { produto: 'BLUEBERRY', embalagem: '11,34KG' },
+            '893A': { produto: 'BLUEBERRY', embalagem: '11,34KG' },
+            '894': { produto: 'PISTACHE CRU', embalagem: '13,61 KG' },
+            '894A': { produto: 'PISTACHE CRU', embalagem: '13,61 KG' },
+            '895': { produto: 'CASTANHA DE CAJU W4 TORRADA E SALGADA', embalagem: '11,34KG' },
+            '896': { produto: 'CASTANHA DE CAJU W4 TORRADA SEM SAL', embalagem: '11,34KG' },
+            '897': { produto: 'CASTANHA DE CAJU W4 CRUA', embalagem: '22,68KG' },
+            '898': { produto: 'FARINHA DE MACA 100%', embalagem: '40KG' },
+            '898A': { produto: 'FARINHA DE MACA 100%', embalagem: '40KG' },
+            '899': { produto: 'FARINHA DE MACA 100%', embalagem: '50KG' },
+            '899A': { produto: 'FARINHA DE MACA 100%', embalagem: '50KG' },
+            '900': { produto: 'FARINHA DE MACA 100%', embalagem: '30KG' },
+            '900A': { produto: 'FARINHA DE MACA 100%', embalagem: '30KG' },
+            '902': { produto: 'LEITE DE COCO EM PO VEGANO', embalagem: '15KG' },
+            '902A': { produto: 'LEITE DE COCO EM PO VEGANO', embalagem: '15KG' },
+            '903': { produto: 'FIGO TURCO N.2', embalagem: '5KG' },
+            '903A': { produto: 'FIGO TURCO N.2', embalagem: '5KG' },
+            '904': { produto: 'PSYLLIUM', embalagem: '10KG' },
+            '904A': { produto: 'PSYLLIUM 70%', embalagem: '10KG' },
+            '905': { produto: 'PSYLLIUM 95%', embalagem: '10KG' },
+            '905A': { produto: 'PSYLLIUM 95%', embalagem: '10KG' },
+            '906': { produto: 'MIX DE AMENDOIM CROCANTE', embalagem: '10KG' },
+            '907': { produto: 'AMENDOIM CARAMELIZADO', embalagem: '10KG' },
+            '908': { produto: 'XYLITOL REFINADO', embalagem: '20KG' },
+            '909': { produto: 'SALSA 100% PO PURO', embalagem: '10KG' },
+            '909A': { produto: 'SALSA 100% PO PURO', embalagem: '10KG' },
+            '910': { produto: 'BICICLETA CANNONDALE, CATALYST 1 GRY LG, MA24427 DSIC 891 1702 2003////', embalagem: '' },
+            '911': { produto: 'BICICLETA TREK, PROCALIBER 9.6 21.5\" SEM PEDAL, WTU242XD0027M - DSIC 891 1800 1362////', embalagem: '' },
+            '912': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '912A': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '913': { produto: 'AMEIXA SEM CAROCO 66/88', embalagem: '10 KG' },
+            '913A': { produto: 'AMEIXA SEM CAROCO 66/88', embalagem: '10 KG' },
+            '914': { produto: 'AMENDOA CRUA S/C 40+ NON PAREIL CHILENA', embalagem: '10KG' },
+            '914A': { produto: 'AMENDOA CRUA S/C 40+ NON PAREIL CHILENA', embalagem: '10KG' },
+            '915': { produto: 'MIX NUTS', embalagem: '10KG' },
+            '916': { produto: 'TRIBULUS TERRESTRE', embalagem: '25KG' },
+            '916A': { produto: 'TRIBULUS TERRESTRE', embalagem: '25KG' },
+            '917': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '917A': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '18KG' },
+            '918': { produto: 'MILHO TOSTADO SABOR BBQ', embalagem: '18KG' },
+            '918A': { produto: 'MILHO TOSTADO SABOR BBQ', embalagem: '18KG' },
+            '919': { produto: 'MILHO TOSTADO SABOR LIMAO E PIMENTA', embalagem: '18KG' },
+            '919A': { produto: 'MILHO TOSTADO SABOR LIMAO E PIMENTA', embalagem: '18KG' },
+            '920': { produto: 'COCO RALADO FINO', embalagem: '20KG' },
+            '920A': { produto: 'COCO RALADO FINO', embalagem: '20KG' },
+            '921': { produto: 'CEBOLINHA DESIDRATADA', embalagem: '7KG' },
+            '922': { produto: 'AMENDOA SEM CASCA CHILENA', embalagem: '10KG' },
+            '922A': { produto: 'AMENDOA SEM CASCA CHILENA', embalagem: '10KG' },
+            '923': { produto: 'AMEIXA SEM CAROCO 60/70', embalagem: '10KG' },
+            '923A': { produto: 'AMEIXA SEM CAROCO 60/70', embalagem: '10KG' },
+            '924': { produto: 'AMEIXA SEM CAROCO 70/80', embalagem: '10KG' },
+            '924A': { produto: 'AMEIXA SEM CAROCO', embalagem: '10KG' },
+            '925': { produto: 'GINSENG RASURADO', embalagem: '10KG' },
+            '926': { produto: 'AZEITONA VERDE FATIADA', embalagem: '150KG' },
+            '926A': { produto: 'AZEITONA VERDE FATIADA', embalagem: '150KG' },
+            '927': { produto: 'AZEITONA VERDE SEM CAROCO', embalagem: '150KG' },
+            '927A': { produto: 'AZEITONA VERDE SEM CAROCO', embalagem: '150KG' },
+            '928': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '928A': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '929': { produto: 'FARINHA DE MARACUJA', embalagem: '30KG' },
+            '930': { produto: 'AMEIXA SEM CAROCO ELLIOT', embalagem: '10KG' },
+            '930A': { produto: 'AMEIXA SEM CAROCO ELLIOT', embalagem: '10KG' },
+            '931': { produto: 'COCO CHIPS NATURAL CASCA', embalagem: '9KG' },
+            '931A': { produto: 'COCO CHIPS NATURAL CASCA', embalagem: '9KG' },
+            '932': { produto: 'FARINHA DE QUINUA', embalagem: '25KG' },
+            '932A': { produto: 'FARINHA DE QUINUA', embalagem: '25KG' },
+            '933': { produto: 'CALDO DE CARNE', embalagem: '10KG' },
+            '934': { produto: 'AMENDOA CRUA S/C 30/32 CARMEL CHILENA', embalagem: '10KG' },
+            '934A': { produto: 'AMENDOA CRUA S/C 30/32 CARMEL CHILENA', embalagem: '10KG' },
+            '935': { produto: 'PIMENTA PRETA QUEBRADINHA', embalagem: '35KG' },
+            '936': { produto: 'QUINUA TRICOLOR GRAO PERUANA', embalagem: '25 KG' },
+            '936A': { produto: 'QUINUA TRICOLOR GRAO PERUANA', embalagem: '25 KG' },
+            '937': { produto: 'LEVEDURA DE CERVEJA EM PO', embalagem: '25KG' },
+            '938': { produto: 'PIMENTA CAIENA', embalagem: '10KG' },
+            '939': { produto: 'AMEIXA SEM CAROCO 22/44', embalagem: '5KG' },
+            '939A': { produto: 'AMEIXA SEM CAROCO 22/44', embalagem: '5KG' },
+            '940': { produto: 'ALHO DESIDRATADO EM PO INDIANO', embalagem: '25 KG' },
+            '940A': { produto: 'ALHO DESIDRATADO EM PO INDIANO', embalagem: '25 KG' },
+            '941': { produto: 'ALHO GRANULADO F GRADE', embalagem: '16KG' },
+            '941A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '16KG' },
+            '942': { produto: 'POLVILHO AZEDO', embalagem: '25KG' },
+            '943': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '943A': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '944': { produto: 'SHITAKE FATIADO', embalagem: '12,50KG' },
+            '944A': { produto: 'SHITAKE FATIADO', embalagem: '12,50KG' },
+            '945': { produto: 'PISTACHE T/S', embalagem: '11,34 KG' },
+            '945A': { produto: 'PISTACHE T/S', embalagem: '11,34 KG' },
+            '946': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '12,50KG' },
+            '946A': { produto: 'FARINHA DE AMENDOA SEM PELE', embalagem: '12,50KG' },
+            '947': { produto: 'FEIJAO FRADINHO', embalagem: '40KG' },
+            '948': { produto: 'PIMENTA PRETA QUEBRADINHA', embalagem: '30KG' },
+            '949': { produto: 'OREGANO ARGENTINO', embalagem: '12KG' },
+            '949A': { produto: 'OREGANO ARGENTINO', embalagem: '12KG' },
+            '950': { produto: 'TRIBULUS 100% PO PURO', embalagem: '10KG' },
+            '951': { produto: 'MALTITOL', embalagem: '25KG' },
+            '951A': { produto: 'MALTITOL', embalagem: '25KG' },
+            '952': { produto: 'COENTRO DESIDRATADO EM FOLHAS', embalagem: '10KG' },
+            '953': { produto: 'FENO GREGO 100% PO PURO', embalagem: '10KG' },
+            '954': { produto: 'GINKGO BILOBA 100% PO PURO', embalagem: '10KG' },
+            '955': { produto: 'CEBOLA DESIDRATADA FLOCOS', embalagem: '12KG' },
+            '955A': { produto: 'CEBOLA DESIDRATADA FLOCOS', embalagem: '12KG' },
+            '956': { produto: 'CEBOLA ROSA GRANULADA MEDIA  3-5 MM', embalagem: '20KG' },
+            '956A': { produto: 'CEBOLA ROSA GRANULADA MEDIA  3-5 MM', embalagem: '20KG' },
+            '957': { produto: 'CAVALINHA', embalagem: '10KG' },
+            '959': { produto: 'PAPRICA DEFUMADA', embalagem: '10KG' },
+            '960': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '11 KG' },
+            '960A': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '11 KG' },
+            '961': { produto: 'FUMACA PO', embalagem: '10KG' },
+            '962': { produto: 'VINAGRETE', embalagem: '5 KG' },
+            '963': { produto: 'CEBOLA ALHO SALSA', embalagem: '5KG' },
+            '964': { produto: 'GUARANA 100% PO PURO', embalagem: '10KG' },
+            '965': { produto: 'PEPITA GIRASSOL', embalagem: '20KG' },
+            '965A': { produto: 'PEPITA GIRASSOL', embalagem: '20KG' },
+            '966': { produto: 'FEIJAO FRADINHO', embalagem: '25KG' },
+            '967': { produto: 'COENTRO PARTIDO ESPANHOL', embalagem: '25KG' },
+            '967A': { produto: 'COENTRO PARTIDO ESPANHOL', embalagem: '25KG' },
+            '968': { produto: 'QUINUA EM FLOCOS NAC', embalagem: '22KG' },
+            '969': { produto: 'QUINUA GRAO NAC', embalagem: '25KG' },
+            '970': { produto: 'ETIQUETA BOPP FOSCO ADESIVO BORRACHA 100MM X 150MM', embalagem: '' },
+            '971': { produto: 'MANGUEIRA 1900MM', embalagem: '' },
+            '972': { produto: 'PRESILHA', embalagem: '' },
+            '973': { produto: 'CAMOMILA IMPORTADA', embalagem: '15KG' },
+            '973A': { produto: 'CAMOMILA IMPORTADA', embalagem: '15KG' },
+            '974': { produto: 'ENDRO PARTIDO', embalagem: '25KG' },
+            '974A': { produto: 'ENDRO PARTIDO', embalagem: '25KG' },
+            '975': { produto: 'ACAFRAO (CURCUMA) QUEBRADA', embalagem: '50KG' },
+            '975A': { produto: 'ACAFRAO (CURCUMA) QUEBRADA', embalagem: '50KG' },
+            '976': { produto: 'TAMARA SEM CAROCO', embalagem: '5KG' },
+            '976A': { produto: 'TAMARA SEM CAROCO', embalagem: '5KG' },
+            '977': { produto: 'AMEIXA COM CAROCO 90/100', embalagem: '10KG' },
+            '977A': { produto: 'AMEIXA COM CAROCO 90/100', embalagem: '10KG' },
+            '978': { produto: 'AMEIXA COM CAROCO 50/60', embalagem: '10KG' },
+            '978A': { produto: 'AMEIXA COM CAROCO 50/60', embalagem: '10KG' },
+            '979': { produto: 'CAMOMILA', embalagem: '12KG' },
+            '980': { produto: 'LINHAÇA MARROM NAC', embalagem: '40 KG' },
+            '981': { produto: 'PISTACHE C/CASCA TORRADO E SALGADO', embalagem: '10 KG' },
+            '981A': { produto: 'PISTACHE C/CASCA TORRADO E SALGADO', embalagem: '10 KG' },
+            '982': { produto: 'ACAFRAO (CURCUMA) 100% PO PURA', embalagem: '10KG' },
+            '982A': { produto: 'ACAFRAO (CURCUMA) 100% PO PURA', embalagem: '10KG' },
+            '984': { produto: 'ALHO GRANULADO F GRADE', embalagem: '20KG' },
+            '984A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '20KG' },
+            '985': { produto: 'ANIS ESTRELADO', embalagem: '9 KG' },
+            '985A': { produto: 'ANIS ESTRELADO', embalagem: '9 KG' },
+            '986': { produto: 'FEIJAO FRADINHO', embalagem: '30KG' },
+            '987': { produto: 'GERGELIM PRETO', embalagem: '40KG' },
+            '987A': { produto: 'GERGELIM PRETO', embalagem: '40KG' },
+            '988': { produto: 'FARINHA DE LINHACA MARROM', embalagem: '10KG' },
+            '989': { produto: 'COENTRO GRAO BULGARO', embalagem: '25KG' },
+            '989A': { produto: 'COENTRO GRAO BULGARO', embalagem: '25KG' },
+            '990': { produto: 'GENGIBRE TRITURADO', embalagem: '20KG' },
+            '990A': { produto: 'GENGIBRE TRITURADO', embalagem: '20KG' },
+            '991': { produto: 'FARINHA DE LINHACA DOURADA', embalagem: '10KG' },
+            '992': { produto: 'AMEIXA COM CAROCO 176/198', embalagem: '10KG' },
+            '992A': { produto: 'AMEIXA COM CAROCO 176/198', embalagem: '10KG' },
+            '993': { produto: 'CASTANHA DE CAJU W4 TORRADA E SALGADA', embalagem: '22,68KG' },
+            '994': { produto: 'CASTANHA DE CAJU W1 TORRADA E SALGADA', embalagem: '11,34KG' },
+            '995': { produto: 'CASTANHA DE CAJU W1 TORRADA SEM SAL', embalagem: '11,34KG' },
+            '996': { produto: 'SEMENTE DE ABOBORA TORRADA SEM SAL', embalagem: '10KG' },
+            '996A': { produto: 'SEMENTE DE ABOBORA TORRADA SEM SAL', embalagem: '10KG' },
+            '997': { produto: 'SEMENTE DE ABOBORA TORRADA E SALGADA', embalagem: '10KG' },
+            '997A': { produto: 'SEMENTE DE ABOBORA TORRADA E SALGADA', embalagem: '10KG' },
+            '998': { produto: 'FARINHA DE CHIA', embalagem: '10KG' },
+            '999': { produto: 'QUINUA EM FLOCOS NAC', embalagem: '20KG' },
+            '1000': { produto: 'APARELHO/PEÇA MECANICA -', embalagem: 'PALETEIRA MANUAL TUV RHEINLAND' },
+            '1001': { produto: 'LINHAÇA MARROM NAC', embalagem: '25 KG' },
+            '1002': { produto: 'GERGELIM SEM CASCA NAC.', embalagem: '25KG' },
+            '1003': { produto: 'XYLITOL', embalagem: '10KG' },
+            '1004': { produto: 'HIBISCUS FLOR', embalagem: '20KG' },
+            '1005': { produto: 'COMINHO 99 PURO', embalagem: '50KG' },
+            '1005A': { produto: 'COMINHO 99 PURO', embalagem: '50KG' },
+            '1006': { produto: 'AMENDOA CRUA S/C NON PAREIL CHILENA', embalagem: '10KG' },
+            '1006A': { produto: 'AMENDOA CRUA S/C NON PAREIL CHILENA', embalagem: '10KG' },
+            '1007': { produto: 'COUSCOUS MARROQUINO MEDIO - DARI', embalagem: '10KG' },
+            '1007A': { produto: 'COUSCOUS MARROQUINO MEDIO - DARI', embalagem: '10KG' },
+            '1008': { produto: 'AMENDOA CRUA S/C 27/30 NON PAREIL USA', embalagem: '22,68KG' },
+            '1008A': { produto: 'AMENDOA CRUA S/C 27/30 NON PAREIL USA', embalagem: '22,68KG' },
+            '1009': { produto: 'AMENDOA DEFUMADA', embalagem: '22,68KG' },
+            '1009A': { produto: 'AMENDOA DEFUMADA', embalagem: '22,68KG' },
+            '1010': { produto: 'AMENDOA TORRADA SEM SAL', embalagem: '22,68KG' },
+            '1010A': { produto: 'AMENDOA TORRADA SEM SAL', embalagem: '22,68KG' },
+            '1011': { produto: 'AMENDOA TORRADA E SALGADA', embalagem: '22,68KG' },
+            '1011A': { produto: 'AMENDOA TORRADA E SALGADA', embalagem: '22,68KG' },
+            '1012': { produto: 'ABACAXI CRISTALIZADO', embalagem: '5KG' },
+            '1013': { produto: 'FIGO CRISTALIZADO', embalagem: '5KG' },
+            '1014': { produto: 'BOLDO', embalagem: '20KG' },
+            '1014A': { produto: 'BOLDO', embalagem: '20KG' },
+            '1015': { produto: 'MILHO DE PIPOCA', embalagem: '25KG' },
+            '1016': { produto: 'GENGIBRE CRISTALIZADO', embalagem: '5KG' },
+            '1017': { produto: 'LIMAO EM TIRAS CRISTALIZADO', embalagem: '5KG' },
+            '1018': { produto: 'LARANJA EM TIRAS CRISTALIZADA', embalagem: '5KG' },
+            '1019': { produto: 'BANANINHA CRISTALIZADA', embalagem: '5KG' },
+            '1020': { produto: 'SEMENTE DE URUCUM', embalagem: '25KG' },
+            '1021': { produto: 'ERVAS FINAS LEMON', embalagem: '10KG' },
+            '1021A': { produto: 'ERVAS FINAS LEMON', embalagem: '10KG' },
+            '1022': { produto: 'PIMENTA BRANCA GRAO', embalagem: '40KG' },
+            '1023': { produto: 'PIMENTA PRETA GRAO', embalagem: '40KG' },
+            '1024': { produto: 'ALBUMINA', embalagem: '5KG' },
+            '1025': { produto: 'GLUTAMINA', embalagem: '5KG' },
+            '1026': { produto: 'ERVAS FINAS LEMON', embalagem: '5KG' },
+            '1026A': { produto: 'ERVAS FINAS LEMON', embalagem: '5KG' },
+            '1027': { produto: 'ENVELOPE PLASTICO FINO S/FUROS P/EMBALAGEM 150MMX200MM PCT C/100-DAC', embalagem: '' },
+            '1028': { produto: 'SHITAKE FATIADO', embalagem: '9 KG' },
+            '1028A': { produto: 'SHITAKE FATIADO', embalagem: '9 KG' },
+            '1029': { produto: 'SHITAKE INTEIRO', embalagem: '6,50 KG' },
+            '1029A': { produto: 'SHITAKE INTEIRO', embalagem: '6,50 KG' },
+            '1030': { produto: 'TOMATE DES EM FLOCOS', embalagem: '25 KG' },
+            '1030A': { produto: 'TOMATE DES EM FLOCOS', embalagem: '25 KG' },
+            '1031': { produto: 'FARINHA DE MACA IMP', embalagem: '25KG' },
+            '1031A': { produto: 'FARINHA DE MACA IMP', embalagem: '25KG' },
+            '1032': { produto: 'MI BICICLETA ELETRICA DOBRAVEL, MI QICYCLE ELECTRIC FOLDING BIKE, PRETO FOSCO/MI XIAOMI/TDR 01Z/ /11128.721899/2020-30', embalagem: '' },
+            '1033': { produto: 'ALBUMINA', embalagem: '10KG' },
+            '1034': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL SUPREME USA', embalagem: '997,92KG' },
+            '1034A': { produto: 'AMENDOA CRUA S/C 27/30 CARMEL SUPREME USA', embalagem: '997,92KG' },
+            '1035': { produto: 'NOZ MOSCADA GRANULADA', embalagem: '25KG' },
+            '1035A': { produto: 'NOZ MOSCADA GRANULADA', embalagem: '25KG' },
+            '1036': { produto: 'COENTRO GRAO ARGENTINO', embalagem: '20KG' },
+            '1036A': { produto: 'COENTRO GRAO ARGENTINO', embalagem: '20KG' },
+            '1037': { produto: 'GRANOLA COM FRUTAS', embalagem: '12KG' },
+            '1038': { produto: 'GRANOLA SEM ACUCAR', embalagem: '12KG' },
+            '1039': { produto: 'GRANOLA TRADICIONAL', embalagem: '12KG' },
+            '1040': { produto: 'GRANOLA COM CHOCOLATE', embalagem: '12KG' },
+            '1041': { produto: 'BOLDO', embalagem: '18KG' },
+            '1041A': { produto: 'BOLDO', embalagem: '18KG' },
+            '1042': { produto: 'CATUABA EM PO', embalagem: '10KG' },
+            '1043': { produto: 'BANANA CHIPS NATURAL', embalagem: '12KG' },
+            '1044': { produto: 'LEVEDURA NUTRICIONAL EM FLOCOS', embalagem: '10KG' },
+            '1044A': { produto: 'LEVEDURA NUTRICIONAL EM FLOCOS', embalagem: '10KG' },
+            '1045': { produto: 'PIMENTA JAMAICA PO', embalagem: '10KG' },
+            '1046': { produto: 'PIMENTA JAMAICA GRAO', embalagem: '25KG' },
+            '1046A': { produto: 'PIMENTA JAMAICA GRAO', embalagem: '25KG' },
+            '1047': { produto: 'CLARA DE OVO (ALBUMINA)', embalagem: '5KG' },
+            '1048': { produto: 'RUSTICA SALGADINHO PIMENTA MEXICANA', embalagem: '5KG' },
+            '1049': { produto: 'RUSTICA SALGADINHO CEBOLA E SALSA', embalagem: '5KG' },
+            '1050': { produto: 'CONITO SALGADINHO PIZZA', embalagem: '5KG' },
+            '1051': { produto: 'RUSTICA SALGADINHO CHURRASCO', embalagem: '5KG' },
+            '1052': { produto: 'CONITO SALGADINHO CEBOLA E SALSA', embalagem: '5KG' },
+            '1053': { produto: 'CONITO SALGADINHO FRANGO', embalagem: '5KG' },
+            '1054': { produto: 'CASTANHA DE CAJU CARAMELIZADA', embalagem: '20KG' },
+            '1055': { produto: 'FUNGHI', embalagem: '16KG' },
+            '1055A': { produto: 'FUNGHI', embalagem: '16KG' },
+            '1056': { produto: 'LARANJA FATIAS', embalagem: '8KG' },
+            '1057': { produto: 'LIMAO TAHITI FATIAS', embalagem: '8KG' },
+            '1058': { produto: 'CARDAMOMO VERDE 5/6', embalagem: '25 KG' },
+            '1058A': { produto: 'CARDAMOMO VERDE', embalagem: '25 KG' },
+            '1059': { produto: 'CAMOMILA IMPORTADA', embalagem: '12,50 KG' },
+            '1059A': { produto: 'CAMOMILA IMPORTADA', embalagem: '12,50 KG' },
+            '1060': { produto: 'AMENDOIM JAPONES', embalagem: '20KG' },
+            '1061': { produto: 'PAINCO', embalagem: '50KG' },
+            '1062': { produto: 'ALHO GRANULADO F GRADE', embalagem: '20KG' },
+            '1062A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '20KG' },
+            '1063': { produto: 'ACUCAR MASCAVO', embalagem: '30KG' },
+            '1064': { produto: 'SORBITOL', embalagem: '25KG' },
+            '1064A': { produto: 'SORBITOL', embalagem: '25KG' },
+            '1065': { produto: 'QUINUA EM FLOCOS NAC', embalagem: '15KG' },
+            '1066': { produto: 'COCO RALADO MEDIO NAC', embalagem: '10KG' },
+            '1067': { produto: 'ERVAS FINAS', embalagem: '5KG' },
+            '1067A': { produto: 'ERVAS FINAS', embalagem: '5KG' },
+            '1068': { produto: 'PROTEÍNA DE SOJA NATURAL', embalagem: '25KG' },
+            '1069': { produto: 'EXTRATO DE SOJA PSA', embalagem: '25KG' },
+            '1071': { produto: 'AMENDOIM DOCE PRALINE', embalagem: '20KG' },
+            '1072': { produto: 'XEREM DE CAJU G2T', embalagem: '11,34KG' },
+            '1073': { produto: 'COCO RALADO FINO NAC', embalagem: '10KG' },
+            '1074': { produto: 'BANANA CHIPS OREGANO', embalagem: '12KG' },
+            '1075': { produto: 'BANANA CHIPS SALSA E CEBOLA', embalagem: '12KG' },
+            '1076': { produto: 'MACA CHIPS GOMOS', embalagem: '9KG' },
+            '1077': { produto: 'MACA INTEGRAL FATIAS', embalagem: '10KG' },
+            '1078': { produto: 'CANELA EM PO IMP', embalagem: '10KG' },
+            '1078A': { produto: 'CANELA EM PO IMP', embalagem: '10KG' },
+            '1079': { produto: 'PIMENTA CALABRESA', embalagem: '20KG' },
+            '1079A': { produto: 'PIMENTA CALABRESA', embalagem: '20KG' },
+            '1080': { produto: 'XEREM DE CAJU X2T', embalagem: '11,34KG' },
+            '1081': { produto: 'ALHO GRANULADO', embalagem: '23KG' },
+            '1081A': { produto: 'ALHO GRANULADO', embalagem: '23KG' },
+            '1082': { produto: 'FARINHA DE QUINOA', embalagem: '10KG' },
+            '1083': { produto: 'CALDO DE BACON', embalagem: '10KG' },
+            '1084': { produto: 'CALDO DE CAMARAO', embalagem: '10KG' },
+            '1085': { produto: 'TEMPERO PARA FEIJAO', embalagem: '10KG' },
+            '1086': { produto: 'CREME DE CEBOLA', embalagem: '10KG' },
+            '1087': { produto: 'TEMPERO MINEIRO FLOCOS', embalagem: '10KG' },
+            '1088': { produto: 'TEMPERO COMPLETO FIT', embalagem: '10KG' },
+            '1089': { produto: 'TEMPERO BAIANO S/PIMENTA', embalagem: '10KG' },
+            '1090': { produto: 'SAL GR PARRILLA', embalagem: '10KG' },
+            '1091': { produto: 'CALDO DE PEIXE', embalagem: '10KG' },
+            '1092': { produto: 'DRY RUB COMPLETO', embalagem: '10KG' },
+            '1093': { produto: 'ZAHTAR', embalagem: '10KG' },
+            '1094': { produto: 'CURRY', embalagem: '10KG' },
+            '1095': { produto: 'TEMPERO PARA FRANGO', embalagem: '10KG' },
+            '1096': { produto: 'TEMPERO PEGA MARIDO', embalagem: '10KG' },
+            '1097': { produto: 'BOLDO', embalagem: '14KG' },
+            '1097A': { produto: 'BOLDO', embalagem: '14KG' },
+            '1098': { produto: 'TEMPERO FIT CARNE', embalagem: '10KG' },
+            '1099': { produto: 'TEMPERO FIT FRANGO', embalagem: '10KG' },
+            '1100': { produto: 'TEMPERO FIT NATURAL', embalagem: '10KG' },
+            '1101': { produto: 'TEMPERO FIT PEIXE', embalagem: '10KG' },
+            '1102': { produto: 'CALDO DE LEGUMES', embalagem: '10KG' },
+            '1103': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '12KG' },
+            '1103A': { produto: 'NOZES MARIP. EXTRALIGHT 80/20', embalagem: '12KG' },
+            '1104': { produto: 'FUMACA PO', embalagem: '25KG' },
+            '1105': { produto: 'SPIRULINA PO', embalagem: '10KG' },
+            '1105A': { produto: 'SPIRULINA PO', embalagem: '10KG' },
+            '1106': { produto: 'SHITAKE FATIADO', embalagem: '8 KG' },
+            '1106A': { produto: 'SHITAKE FATIADO', embalagem: '8 KG' },
+            '1107': { produto: 'NOZ-MACADAMIA TORRADA SEM SAL', embalagem: '10KG' },
+            '1108': { produto: 'CONDICOR', embalagem: '18KG' },
+            '1109': { produto: 'MIX DE FRUTAS VERMELHAS', embalagem: '10KG' },
+            '1110': { produto: 'FARINHA DE MACA NEGRA 100%', embalagem: '25KG' },
+            '1110A': { produto: 'FARINHA DE MACA NEGRA 100%', embalagem: '25KG' },
+            '1111': { produto: 'AMENDOIM XEREM', embalagem: '25KG' },
+            '1112': { produto: 'AMENDOA CRUA S/C 25/27 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1112A': { produto: 'AMENDOA CRUA S/C 25/27 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1113': { produto: 'GRANOLA SEM ACUCAR', embalagem: '9,60KG' },
+            '1114': { produto: 'SEMENTE DE ABOBORA CRUA S/CASCA AA', embalagem: '25 KG' },
+            '1114A': { produto: 'SEMENTE DE ABOBORA CRUA S/CASCA AA', embalagem: '25 KG' },
+            '1115': { produto: 'SEMENTE DE CHIA PREMIUM', embalagem: '25KG' },
+            '1116': { produto: 'AMEIXA COM CAROCO 66/88', embalagem: '10KG' },
+            '1116A': { produto: 'AMEIXA COM CAROCO 66/88', embalagem: '10KG' },
+            '1117': { produto: 'PIMENTA CALABRESA', embalagem: '10KG' },
+            '1117A': { produto: 'PIMENTA CALABRESA', embalagem: '10KG' },
+            '1118': { produto: 'AMACIANTE P/ CARNE', embalagem: '10KG' },
+            '1119': { produto: 'NOZES SEM CASCA PECAN', embalagem: '10KG' },
+            '1120': { produto: 'CEBOLINHA DESIDRATADA', embalagem: '12KG' },
+            '1121': { produto: 'PAPRICA PICANTE', embalagem: '10KG' },
+            '1122': { produto: 'MANJERONA', embalagem: '25KG' },
+            '1122A': { produto: 'MANJERONA', embalagem: '25KG' },
+            '1123': { produto: 'AMENDOA CRUA S/C 23/25 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1123A': { produto: 'AMENDOA CRUA S/C 23/25 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1124': { produto: 'FARINHA DE MACA 100%', embalagem: '10KG' },
+            '1124A': { produto: 'FARINHA DE MACA 100%', embalagem: '10KG' },
+            '1125': { produto: 'CEBOLINHA DESIDRATADA', embalagem: '15KG' },
+            '1126': { produto: 'SALSA DESIDRATADA', embalagem: '12KG' },
+            '1127': { produto: 'AMACIANTE DE CARNE', embalagem: '10KG' },
+            '1128': { produto: 'NIBS DE CACAU', embalagem: '10KG' },
+            '1129': { produto: 'NIBS DE CACAU', embalagem: '25KG' },
+            '1130': { produto: 'LINHACA DOURADA NAC.', embalagem: '25KG' },
+            '1131': { produto: 'NOZ MOSCADA 100% PO PURA', embalagem: '10KG' },
+            '1131A': { produto: 'NOZ MOSCADA 100% PO PURA', embalagem: '10KG' },
+            '1132': { produto: 'CASTANHA DE CAJU TORRADA SEM SAL', embalagem: '22,68KG' },
+            '1133': { produto: 'LOURO EM PO', embalagem: '10 KG' },
+            '1134': { produto: 'SALSA DESIDRATADA', embalagem: '5KG' },
+            '1135': { produto: 'CLARA DE OVO (ALBUMINA)', embalagem: '10KG' },
+            '1136': { produto: 'LINHACA MARROM', embalagem: '45,36 KG' },
+            '1136A': { produto: 'LINHACA MARROM', embalagem: '45,36 KG' },
+            '1137': { produto: 'GOLDENBERRIE', embalagem: '10KG' },
+            '1137A': { produto: 'GOLDENBERRIE', embalagem: '10KG' },
+            '1138': { produto: 'COMINHO 99 PURO', embalagem: '25KG' },
+            '1138A': { produto: 'COMINHO 99 PURO', embalagem: '25KG' },
+            '1139': { produto: 'PIMENTA JAMAICA GRAO NAC.', embalagem: '25KG' },
+            '1140': { produto: 'LOURO 100% EM PO', embalagem: '10KG' },
+            '1141A': { produto: 'COMINHO 100% EM PO', embalagem: '10KG' },
+            '1142': { produto: 'AVELA TORRADA SEM SAL', embalagem: '10KG' },
+            '1142A': { produto: 'AVELA TORRADA SEM SAL', embalagem: '10KG' },
+            '1143': { produto: 'QUINUA GRAO PREMIUM NAC', embalagem: '25KG' },
+            '1144': { produto: 'BANANA CHIPS SALGADA', embalagem: '12KG' },
+            '1145': { produto: 'BANANA CHIPS SALSA E CEBOLA', embalagem: '12KG' },
+            '1146': { produto: 'PIMENTA JAMAICA GRAO NAC.', embalagem: '45KG' },
+            '1147': { produto: 'AMENDOA CRUA S/C 30/32 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1147A': { produto: 'AMENDOA CRUA S/C 30/32 CARMEL SUPREME USA', embalagem: '22,68KG' },
+            '1148': { produto: 'BANANA CHIPS DOCE', embalagem: '12KG' },
+            '1149': { produto: 'FEIJAO CORDA', embalagem: '60KG' },
+            '1150': { produto: 'FARINHA DE MANDIOCA FINA', embalagem: '25KG' },
+            '1151': { produto: 'CRAVO 100% PO PURO', embalagem: '10KG' },
+            '1152A': { produto: 'TOMATE 100% PO PURO', embalagem: '10KG' },
+            '1153': { produto: 'ACIDO CITRICO ANIDRO NAC', embalagem: '25KG' },
+            '1154': { produto: 'LEMON PEPPER NAC', embalagem: '10 KG' },
+            '1155': { produto: 'CARDAMOMO VERDE', embalagem: '20 KG' },
+            '1155A': { produto: 'CARDAMOMO VERDE', embalagem: '20 KG' },
+            '1156': { produto: 'CANELA JAWA QUEBRADA INDONESIA', embalagem: '25KG' },
+            '1156A': { produto: 'CANELA JAWA QUEBRADA INDONESIA', embalagem: '25KG' },
+            '1157': { produto: 'FARINHA DE GRAO DE BICO', embalagem: '10KG' },
+            '1157A': { produto: 'FARINHA DE GRAO DE BICO', embalagem: '10KG' },
+            '1158': { produto: 'GLUTAMINA', embalagem: '10KG' },
+            '1159': { produto: 'OLEO DE COCO VIRGEM ORGANICO', embalagem: '180KG' },
+            '1159A': { produto: 'OLEO DE COCO VIRGEM ORGANICO', embalagem: '180KG' },
+            '1160': { produto: 'PEPITA GIRASSOL', embalagem: '25KG' },
+            '1160A': { produto: 'PEPITA GIRASSOL', embalagem: '25KG' },
+            '1161': { produto: 'BARRINHA DE BANANA SEM ADICAO DE ACUCAR', embalagem: '5KG' },
+            '1163': { produto: 'PAPRICA ASTA', embalagem: '120 25KG' },
+            '1163A': { produto: 'PAPRICA ASTA', embalagem: '120 25KG' },
+            '1164': { produto: 'FEIJAO AZUKI', embalagem: '25KG' },
+            '1166': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '10KG' },
+            '1166A': { produto: 'CANELA VERA CORTADA  6 CM', embalagem: '10KG' },
+            '1168': { produto: 'AMENDOIM TORRADO SEM CASCA SEM SAL', embalagem: '10KG' },
+            '1169A': { produto: 'PEPITA GIRASSOL TORRADA SEM SAL', embalagem: '10KG' },
+            '1170': { produto: 'GERGELIM TORRADO COM CASCA SEM SAL', embalagem: '10KG' },
+            '1172': { produto: 'ALHO GRANULADO AREIA 40/80', embalagem: '25 KG' },
+            '1172A': { produto: 'ALHO GRANULADO AREIA 40/80', embalagem: '25 KG' },
+            '1174': { produto: 'UVA SECA', embalagem: '30KG' },
+            '1177A': { produto: 'PISTACHE CRU SEM CASCA PEDACOS', embalagem: '10 KG' },
+            '1178': { produto: 'ERYTHRITOL', embalagem: '10KG' },
+            '1179': { produto: 'GOMA XANTANA', embalagem: '25KG' },
+            '1180': { produto: 'MALTITOL', embalagem: '10KG' },
+            '1180A': { produto: 'MALTITOL', embalagem: '10KG' },
+            '1182A': { produto: 'OREGANO 100% EM PO', embalagem: '10KG' },
+            '1184': { produto: 'FEIJAO MOASHI', embalagem: '25KG' },
+            '1185A': { produto: 'NOZES COM CASCA 32/34', embalagem: '10KG' },
+            '1187': { produto: 'FARINHA DE COCO BRANCA IMP', embalagem: '10KG' },
+            '1187A': { produto: 'FARINHA DE COCO BRANCA IMP', embalagem: '10KG' },
+            '1189A': { produto: 'PEPITA GIRASSOL TORRADA E SALGADA', embalagem: '10KG' },
+            '1191': { produto: 'CANELA JAWA INTEIRA', embalagem: '25KG' },
+            '1191A': { produto: 'CANELA JAWA INTEIRA', embalagem: '25KG' },
+            '1200': { produto: 'MANJERONA A', embalagem: '25KG' },
+            '1200A': { produto: 'MANJERONA A', embalagem: '25KG' },
+            '1201': { produto: 'MANJERONA B', embalagem: '25KG' },
+            '1201A': { produto: 'MANJERONA B', embalagem: '25KG' },
+            '1203': { produto: 'ALHO GRANULADO 8/16 INDIANO', embalagem: '25KG' },
+            '1203A': { produto: 'ALHO GRANULADO INDIANO', embalagem: '25KG' },
+            '1205A': { produto: 'GERGELIM TORRADO SEM CASCA SEM SAL', embalagem: '10KG' },
+            '1206': { produto: 'GOMA XANTANA', embalagem: '25KG' },
+            '1206A': { produto: 'GOMA XANTANA 200 MESH', embalagem: '25KG' },
+            '1209': { produto: 'AMENDOIM CROCANTE NATURAL', embalagem: '10KG' },
+            '1212': { produto: 'ERVA DOCE ESPANHOLA', embalagem: '25KG' },
+            '1212A': { produto: 'ERVA DOCE ESPANHOLA', embalagem: '25KG' },
+            '1214': { produto: 'GENGIBRE EM PO IMP', embalagem: '10KG' },
+            '1214A': { produto: 'GENGIBRE EM PO IMP', embalagem: '10KG' },
+            '1216': { produto: 'FARINHA PANKO BRANCA', embalagem: '10KG' },
+            '1216A': { produto: 'FARINHA PANKO BRANCA', embalagem: '10KG' },
+            '1225': { produto: 'AMENDOIM CROCANTE BACON', embalagem: '10KG' },
+            '1227': { produto: 'AMENDOIM CROCANTE MOSTARDA E MEL', embalagem: '10KG' },
+            '1232': { produto: 'SALSA DESIDRATADA IMP', embalagem: '25KG' },
+            '1234A': { produto: 'GOMA XANTANA EM PO', embalagem: '10KG' },
+            '1235A': { produto: 'MALTITOL', embalagem: '10KG' },
+            '1236A': { produto: 'LENTILHA VERDE', embalagem: '25KG' },
+            '1237': { produto: 'SAL GR PARRILLA', embalagem: '25KG' },
+            '1239': { produto: 'ACAFRAO (CURCUMA) 100% PO PURA', embalagem: '25KG' },
+            '1239A': { produto: 'ACAFRAO (CURCUMA) 100% PO PURA', embalagem: '25KG' },
+            '1241': { produto: 'GERGELIM TORRADO SEM CASCA SEM SAL NAC', embalagem: '10KG' },
+            '1242': { produto: 'FARINHA DE MACA INTEGRAL', embalagem: '20KG' },
+            '1245': { produto: 'AMENDOIM GRAUDO TORRADO E SALGADO', embalagem: '10KG' },
+            '1246': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '20 KG' },
+            '1246A': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '20 KG' },
+            '1247': { produto: 'CEBOLA GRANULADA MEDIA 3-5 MM', embalagem: '25 KG' },
+            '1247A': { produto: 'CEBOLA GRANULADA MEDIA 3-5 MM', embalagem: '25 KG' },
+            '1252A': { produto: 'MILHO TOSTADO SABOR MOSTARDA E MEL', embalagem: '10KG' },
+            '1257': { produto: 'LOURO TURCO', embalagem: '25KG' },
+            '1257A': { produto: 'LOURO TURCO', embalagem: '25KG' },
+            '1258': { produto: 'FIBRA DE MACA', embalagem: '10KG' },
+            '1259': { produto: 'ALECRIM', embalagem: '25KG' },
+            '1259A': { produto: 'ALECRIM', embalagem: '25KG' },
+            '1262': { produto: 'ALHO DESIDRATADO EM PO INDIANO', embalagem: '20 KG' },
+            '1262A': { produto: 'ALHO DESIDRATADO EM PO INDIANO', embalagem: '20 KG' },
+            '1264': { produto: 'TEMPERO PEGA ESPOSA', embalagem: '10KG' },
+            '1270A': { produto: 'PISTACHE CRU SEM CASCA', embalagem: '12 KG' },
+            '1272': { produto: 'SALVIA', embalagem: '16 KG' },
+            '1272A': { produto: 'SALVIA', embalagem: '16 KG' },
+            '1273A': { produto: 'ALHO GRANULADO F GRADE', embalagem: '10KG' },
+            '1276': { produto: 'FENO GREGO EM PO', embalagem: '10KG' },
+            '1276A': { produto: 'FENO GREGO EM PO', embalagem: '10KG' },
+            '1278': { produto: 'MORANGO', embalagem: '10KG' },
+            '1280': { produto: 'BISCOITO DE ARROZ TOMATE', embalagem: '5KG' },
+            '1280A': { produto: 'BISCOITO DE ARROZ TOMATE', embalagem: '5KG' },
+            '1284A': { produto: 'GRAO DE BICO PARTIDO', embalagem: '25KG' },
+            '1285A': { produto: 'CASTANHA DO PARA SEM CASCA QUEBRADA BOLIVIANA', embalagem: '20KG' },
+            '1288': { produto: 'LEVEDURA NUTRICIONAL EM FLOCOS', embalagem: '25KG' },
+            '1288A': { produto: 'LEVEDURA NUTRICIONAL EM FLOCOS', embalagem: '25KG' },
+            '1289': { produto: 'PAPRICA ASTA', embalagem: '120 15KG' },
+            '1289A': { produto: 'PAPRICA ASTA', embalagem: '120 15KG' },
+            '1291': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM MEL', embalagem: '10KG' },
+            '1292': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM GERGELIM', embalagem: '10KG' },
+            '1293': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM L. CONDENSADO', embalagem: '10KG' },
+            '1296': { produto: 'BICARBONATO DE SODIO IMP', embalagem: '25KG' },
+            '1296A': { produto: 'BICARBONATO DE SODIO IMP', embalagem: '25KG' },
+            '1297': { produto: 'SAGU PEROLA OLINDA', embalagem: '25KG' },
+            '1298': { produto: 'TAPIOCA PRATA', embalagem: '25KG' },
+            '1300A': { produto: 'CREATINA MONOHIDRATADA IMP', embalagem: '25KG' },
+            '1301A': { produto: 'LENTILHA VERMELHA', embalagem: '45,36KG' },
+            '1302': { produto: 'CARQUEJA AMARGO', embalagem: '10KG' },
+            '1303': { produto: 'CARQUEJA DOCE', embalagem: '10KG' },
+            '1304': { produto: 'CAVALINHA', embalagem: '10KG' },
+            '1305': { produto: 'ESPINHEIRA SANTA', embalagem: '10 KG' },
+            '1306': { produto: 'MELISSA LIPIA', embalagem: '10KG' },
+            '1308': { produto: 'CANELA DE VELHO', embalagem: '10KG' },
+            '1309': { produto: 'AMORA BRANCA', embalagem: '10KG' },
+            '1310': { produto: 'MULUNGU', embalagem: '10KG' },
+            '1311': { produto: 'FARINHA DE CASTANHA DE CAJU', embalagem: '11,34KG' },
+            '1312': { produto: 'ALHO GRANULADO INDIANO', embalagem: '20KG' },
+            '1313': { produto: 'ALHO GRANULADO AREIA 16/26 INDIANO', embalagem: '20 KG' },
+            '1314A': { produto: 'ERVILHA PARTIDA', embalagem: '25KG' },
+            '1315': { produto: 'ZIMBRO ALEMAO', embalagem: '25KG' },
+            '1315A': { produto: 'ZIMBRO ALEMAO', embalagem: '25KG' },
+            '1317': { produto: 'BALA DE BANANA SEM ACUCAR', embalagem: '5KG' },
+            '1318': { produto: 'BANANA CHIPS OREGANO', embalagem: '12KG' },
+            '1319': { produto: 'ESTRAGAO', embalagem: '13KG' },
+            '1319A': { produto: 'ESTRAGAO', embalagem: '13KG' },
+            '1320': { produto: 'PIMENTAO VERDE DES EM FLOCOS', embalagem: '20 KG' },
+            '1320A': { produto: 'PIMENTAO VERDE DES EM FLOCOS', embalagem: '20 KG' },
+            '1323': { produto: 'COCO LASCAS S/PELICULA PREMIUM', embalagem: '5KG' },
+            '1324': { produto: 'EXTRATO DE SOJA PSA', embalagem: '10KG' },
+            '1325': { produto: 'COCO LASCAS C/PELICULA PREMIUM', embalagem: '5KG' },
+            '1326': { produto: 'CREATINA MONOHIDRATADA IMP', embalagem: '10KG' },
+            '1326A': { produto: 'CREATINA MONOHIDRATADA IMP', embalagem: '10KG' },
+            '1327': { produto: 'SHITAKE FATIADO', embalagem: '6,50KG' },
+            '1327A': { produto: 'SHITAKE FATIADO', embalagem: '6,50KG' },
+            '1328': { produto: 'PSYLLIUM 60%', embalagem: '10KG' },
+            '1328A': { produto: 'PSYLLIUM', embalagem: '10KG' },
+            '1329': { produto: 'PSYLLIUM 85%', embalagem: '10KG' },
+            '1329A': { produto: 'PSYLLIUM 85%', embalagem: '10KG' },
+            '1330': { produto: 'ACAI EM PO DESIDRATADO', embalagem: '5KG' },
+            '1331': { produto: 'OREGANO BOLIVIANO', embalagem: '15KG' },
+            '1331A': { produto: 'OREGANO BOLIVIANO', embalagem: '15KG' },
+            '1332': { produto: 'CAPIM LIMAO', embalagem: '15KG' },
+            '1334': { produto: 'OREGANO EGYPCIO', embalagem: '12,50KG' },
+            '1336': { produto: 'CEBOLA DESIDRATADA CRISPY', embalagem: '20KG' },
+            '1337': { produto: 'ORA-PRO-NOBIS', embalagem: '10KG' },
+            '1338': { produto: 'AMENDOIM XEREM', embalagem: '10KG' },
+            '1339': { produto: 'FARINHA DE AMENDOIM', embalagem: '10KG' },
+            '1340': { produto: 'BARRINHA DE BANANA SEM ADICAO DE ACUCAR', embalagem: '8KG' },
+            '1341': { produto: 'CRAVO MADAGASCAR', embalagem: '25KG' },
+            '1341A': { produto: 'CRAVO MADAGASCAR', embalagem: '25KG' },
+            '1342A': { produto: 'AMENDOA CRUA S/C 30/32 ESPANHOLA', embalagem: '10KG' },
+            '1344': { produto: 'GRAO DE BICO PARTIDO', embalagem: '25KG' },
+            '1345': { produto: 'PISTACHE CRU S/CASCA 85% INTEIROS', embalagem: '10 KG' },
+            '1345A': { produto: 'PISTACHE CRU S/CASCA INTEIROS USA', embalagem: '10 KG' },
+            '1347': { produto: 'COLAGENO HIDROLISADO', embalagem: '5KG' },
+            '1348': { produto: 'FARINHA DE AMENDOIM', embalagem: '5KG' },
+            '1349': { produto: 'AMENDOIM XEREM', embalagem: '5KG' },
+            '1350': { produto: 'SOJA EM GRAOS', embalagem: '25KG' },
+            '1351': { produto: 'CASTANHA DO PARA S/ CASCA LARGE', embalagem: '10KG' },
+            '1352': { produto: 'LOURO EGYPCIO', embalagem: '25KG' },
+            '1352A': { produto: 'LOURO EGYPCIO', embalagem: '25KG' },
+            '1356': { produto: 'AMENDOA CRUA S/C 23/27 ESPANHOLA', embalagem: '10KG' },
+            '1356A': { produto: 'AMENDOA CRUA S/C 23/27 ESPANHOLA', embalagem: '10KG' },
+            '1357': { produto: 'FARINHA DE MACA IMP', embalagem: '10KG' },
+            '1357A': { produto: 'FARINHA DE MACA IMP', embalagem: '10KG' },
+            '1358': { produto: 'ESTRAGAO', embalagem: '15KG' },
+            '1359A': { produto: 'SEMENTE DE URUCUM', embalagem: '50KG' },
+            '1360': { produto: 'AMENDOIM TORRADO SEM CASCA COM SAL', embalagem: '10KG' },
+            '1361': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM COCO', embalagem: '10KG' },
+            '1362': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM ACAI', embalagem: '10KG' },
+            '1363': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM MARACUJA', embalagem: '10KG' },
+            '1364A': { produto: 'ACIDO CITRICO ANIDRO IMP', embalagem: '25KG' },
+            '1368': { produto: 'CALDO DE COSTELA', embalagem: '10KG' },
+            '1384': { produto: 'POLVILHO DOCE (GOMA)', embalagem: '25KG' },
+            '1385': { produto: 'PAU TENENTE (QUASSIA)', embalagem: '10KG' },
+            '1386': { produto: 'FARINHA DE BETERRABA', embalagem: '10KG' },
+            '1387': { produto: 'CHLORELLA EM PO', embalagem: '10KG' },
+            '1387A': { produto: 'CHLORELLA EM PO', embalagem: '10KG' },
+            '1388': { produto: 'FENO GREGO', embalagem: '25KG' },
+            '1388A': { produto: 'FENO GREGO', embalagem: '25KG' },
+            '1389': { produto: 'AMENDOIM CROCANTE OVINHO', embalagem: '5KG' },
+            '1390': { produto: 'SAL NEGRO FINO', embalagem: '10KG' },
+            '1390A': { produto: 'SAL NEGRO FINO', embalagem: '10KG' },
+            '1391': { produto: 'GUARANA PO', embalagem: '5KG' },
+            '1392': { produto: 'NOZES SEM CASCA PECAN QUEBRADA', embalagem: '10KG' },
+            '1393': { produto: 'WHEY PROTEIN CONCENTRADO 80%', embalagem: '5KG' },
+            '1394': { produto: 'FARINHA DE MACA NEGRA IMP', embalagem: '10KG' },
+            '1394A': { produto: 'FARINHA DE MACA NEGRA IMP', embalagem: '10KG' },
+            '1395': { produto: 'GELATINA', embalagem: '5KG' },
+            '1396': { produto: 'FOLHA DE SENE', embalagem: '12,50 KG' },
+            '1396A': { produto: 'FOLHA DE SENE', embalagem: '12,50 KG' },
+            '1397A': { produto: 'UVA PASSA BRANCA SULAFRICANA CHOICE SELECIONADA', embalagem: '12,50 KG' },
+            '1398A': { produto: 'AMENDOA CRUA S/C SUPREME ESPANHOLA', embalagem: '10KG' },
+            '1399A': { produto: 'NOZES QUARTZ LIGHT USA', embalagem: '11,34KG' },
+            '1400': { produto: 'PIMENTA JAMAICA GRAO NAC.', embalagem: '10KG' },
+            '1401': { produto: 'BISCOITO DE ARROZ QUEIJO', embalagem: '5KG' },
+            '1401A': { produto: 'BISCOITO DE ARROZ QUEIJO', embalagem: '5KG' },
+            '1402': { produto: 'GENGIBRE EM PO IMP', embalagem: '25KG' },
+            '1403': { produto: 'FARINHA PANKO BRANCA', embalagem: '8KG' },
+            '1404': { produto: 'MANGA DESIDRATADA', embalagem: '10KG' },
+            '1404A': { produto: 'MANGA DESIDRATADA', embalagem: '10KG' },
+            '1405': { produto: 'JACA DESIDRATADA', embalagem: '7KG' },
+            '1405A': { produto: 'JACA DESIDRATADA', embalagem: '7KG' },
+            '1406': { produto: 'ABACAXI DESIDRATADO', embalagem: '10KG' },
+            '1407': { produto: 'CEREJA', embalagem: '12,50KG' },
+            '1407A': { produto: 'CEREJA', embalagem: '12,50KG' },
+            '1408': { produto: 'MORANGO', embalagem: '12,50KG' },
+            '1409': { produto: 'CHIMICHURRI DEFUMADO', embalagem: '10KG' },
+            '1410': { produto: 'AIPO', embalagem: '25KG' },
+            '1411': { produto: 'PAPRICA ASTA', embalagem: '100 25KG' },
+            '1412': { produto: 'COLAGENO HIDROLISADO SABOR LARANJA', embalagem: '5KG' },
+            '1413': { produto: 'COLAGENO HIDROLISADO SABOR LIMAO', embalagem: '5KG' },
+            '1414': { produto: 'COLAGENO HIDROLISADO SABOR MORANGO', embalagem: '5KG' },
+            '1415': { produto: 'BICARBONATO DE AMONIO IMP', embalagem: '25KG' },
+            '1416': { produto: 'MIX AGRIDOCE', embalagem: '10KG' },
+            '1417': { produto: 'LEVEDURA NUTRICIONAL EM FLOCOS', embalagem: '25KG' },
+            '1418A': { produto: 'NOZES CH COM CASCA 36+', embalagem: '8KG' },
+            '1419A': { produto: 'NOZES CH COM CASCA 34/36', embalagem: '8KG' },
+            '1420': { produto: 'FARINHA DE BETERRABA', embalagem: '30KG' },
+            '1421A': { produto: 'SHITAKE FATIADO', embalagem: '7 KG' },
+            '1422A': { produto: 'ENDRO', embalagem: '25KG' },
+            '1423': { produto: 'BETERRABA DESIDRATADA', embalagem: '10KG' },
+            '1424': { produto: 'CHA VERDE IMP', embalagem: '10KG' },
+            '1424A': { produto: 'CHA VERDE IMP', embalagem: '10KG' },
+            '1425': { produto: 'LAVANDA', embalagem: '20KG' },
+            '1426': { produto: 'MORANGO', embalagem: '10KG' },
+            '1426A': { produto: 'MORANGO', embalagem: '10KG' },
+            '1427A': { produto: 'FARINHA DE BETERRABA IMP', embalagem: '10KG' },
+            '1428A': { produto: 'LOURO PO PURO 100%', embalagem: '20KG' },
+            '1429A': { produto: 'OREGANO ARGENTINO', embalagem: '10KG' },
+            '1430': { produto: 'PAPRICA ASTA', embalagem: '100 10KG' },
+            '1430A': { produto: 'PAPRICA ASTA', embalagem: '100 10KG' },
+            '1431A': { produto: 'NOZES QUARTILHOS LIGHT USA', embalagem: '13,61KG' },
+            '1432A': { produto: 'ESPINAFRE EM PO', embalagem: '10 KG' },
+            '1433A': { produto: 'LENTILHA VERDE USA', embalagem: '50KG' },
+            '1434': { produto: 'BALA DE BANANA COM ACUCAR', embalagem: '5KG' },
+            '1435': { produto: 'BARRINHA DE BANANA COM ADICAO DE ACUCAR', embalagem: '8KG' },
+            '1436A': { produto: 'PISTACHE CRU INTEIRO SEM CASCA USA', embalagem: '10KG' },
+            '1437': { produto: 'AMENDOA CONFEITADA BRANCA', embalagem: '5KG' },
+            '1438': { produto: 'AMENDOA CONFEITADA COLORIDA', embalagem: '5KG' },
+            '1439A': { produto: 'NOZES COM CASCA 36+', embalagem: '10KG' },
+            '1440A': { produto: 'AMENDOA DEFUMADA', embalagem: '20KG' },
+            '1441': { produto: 'PSYLLIUM 80%', embalagem: '10KG' },
+            '1442': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM MORANGO', embalagem: '10KG' },
+            '1443A': { produto: 'ALHO GRANULADO AREIA 26/40', embalagem: '25 KG' },
+            '1444': { produto: 'GINKGO BILOBA', embalagem: '25KG' },
+            '1445': { produto: 'MORANGO', embalagem: '10KG' },
+            '1445A': { produto: 'MORANGO', embalagem: '10KG' },
+            '1446': { produto: 'SEMENTE DE CHIA', embalagem: '30KG' },
+            '1447': { produto: 'LOURO SELECIONADO EGYPCIO', embalagem: '25KG' },
+            '1448A': { produto: 'SHITAKE INTEIRO', embalagem: '14KG' },
+            '1449A': { produto: 'SHITAKE FATIADO', embalagem: '15KG' },
+            '1450A': { produto: 'MACA DESIDRATADA', embalagem: '10KG' },
+            '1451': { produto: 'OLEO PET 6X900ML LIZA SOJA', embalagem: '5,40KG' },
+            '1452': { produto: 'UVA PASSA PRETA UZBEQUISTAO', embalagem: '10 KG' },
+            '1452A': { produto: 'UVA PASSA PRETA UZBEQUISTAO', embalagem: '10 KG' },
+            '1453': { produto: 'GENGIBRE', embalagem: '50KG' },
+            '1454': { produto: 'XYLITOL', embalagem: '10KG' },
+            '1455': { produto: 'ERYTHRITOL', embalagem: '10KG' },
+            '1456': { produto: 'KIWI DESIDRATADO', embalagem: '10KG' },
+            '1456A': { produto: 'KIWI DESIDRATADO', embalagem: '10KG' },
+            '1457A': { produto: 'BETERRABA EM PO', embalagem: '20KG' },
+            '1458': { produto: 'LOURO TRITURADO', embalagem: '20KG' },
+            '1459': { produto: 'ERVILHA C/ WASABI', embalagem: '10KG' },
+            '1459A': { produto: 'ERVILHA C/ WASABI', embalagem: '10KG' },
+            '1460A': { produto: 'FARINHA DE MACA NEGRA', embalagem: '10KG' },
+            '1461': { produto: 'CEREJA DESIDRATADA', embalagem: '10KG' },
+            '1461A': { produto: 'CEREJA DESIDRATADA', embalagem: '10KG' },
+            '1462': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '1462A': { produto: 'ALHO PORO', embalagem: '10KG' },
+            '1463': { produto: 'RESIDUO DE CRAVO', embalagem: '25KG' },
+            '1464A': { produto: 'SEMENTE DE ABOBORA C/CASCA TORRADA E SALGADA', embalagem: '10KG' },
+            '1465A': { produto: 'GLUCOMANNAN', embalagem: '10KG' },
+            '1466': { produto: 'FOSFATO TRICALCICO', embalagem: '25KG' },
+            '1467': { produto: 'ACUCAR REFINADO', embalagem: '25KG' },
+            '1468': { produto: 'MALTO DEXTRINA', embalagem: '25KG' },
+            '1469': { produto: 'CHIMICHURRI COM LIMAO', embalagem: '10KG' },
+            '1470': { produto: 'TEMPERO TEMPERA TUDO', embalagem: '10KG' },
+            '1471': { produto: 'TEMPERO TARTARO', embalagem: '10KG' },
+            '1472': { produto: 'AROMA SABOR BACON', embalagem: '25KG' },
+            '1473': { produto: 'AROMA SABOR GALINHA', embalagem: '25KG' },
+            '1474': { produto: 'AROMA SABOR COSTELA', embalagem: '25KG' },
+            '1475': { produto: 'AROMA SABOR LEGUMES', embalagem: '25KG' },
+            '1476': { produto: 'AROMA SABOR CHURRASCO', embalagem: '25KG' },
+            '1477': { produto: 'CORANTE CARAMELO', embalagem: '25KG' },
+            '1478': { produto: 'AROMA SABOR LIMAO', embalagem: '25KG' },
+            '1479': { produto: 'AROMA SABOR CAMARAO', embalagem: '25KG' },
+            '1480': { produto: 'AROMA SABOR CARNE', embalagem: '25KG' },
+            '1481': { produto: 'GLUCOMANNAN', embalagem: '25KG' },
+            '1482': { produto: 'DIOXIDO DE SILICIO', embalagem: '15KG' },
+            '1483': { produto: 'TEMPERO CONQUISTA SOGRA', embalagem: '10KG' },
+            '1484': { produto: 'FARINHA DE AMENDOIM', embalagem: '20KG' },
+            '1485': { produto: 'TEMPERO P/ARROZ E FRANGO', embalagem: '10KG' },
+            '1486': { produto: 'COMINHO COM PIMENTA', embalagem: '10KG' },
+            '1487': { produto: 'MULUNGU', embalagem: '15KG' },
+            '1488': { produto: 'AMENDOIM CROCANTE CHURRASCO', embalagem: '20KG' },
+            '1489': { produto: 'CASQUILHO DE GUARANA', embalagem: '25KG' },
+            '1490': { produto: 'TEMPERO GAUCHO', embalagem: '10KG' },
+            '1491': { produto: 'SAL GR PARRILLA C/LEMON PEPPER', embalagem: '10KG' },
+            '1492': { produto: 'SAL GR PARRILLA C/CHIMICHURRI', embalagem: '10KG' },
+            '1493': { produto: 'SAL GR PARRILLA C/LIMAO', embalagem: '10KG' },
+            '1494': { produto: 'SAL GR PARRILLA DEFUMADO', embalagem: '10KG' },
+            '1495': { produto: 'PROTEINA DE SOJA SABOR BACON', embalagem: '10KG' },
+            '1496': { produto: 'AROMA SABOR PEIXE', embalagem: '25KG' },
+            '1497': { produto: 'ALHO GRANULADO AREIA 16/26 INDIANO', embalagem: '25KG' },
+            '1498': { produto: 'CHIMICHURRI S/PIMENTA COMERCIAL', embalagem: '10KG' },
+            '1499': { produto: 'CHIMICHURRI C/PIMENTA COMERCIAL', embalagem: '10KG' },
+            '1500': { produto: 'AIPO 100% PO PURO', embalagem: '10KG' },
+            '1501A': { produto: 'BATATA FLOCOS', embalagem: '20KG' },
+            '1502': { produto: 'AROMA SABOR LARANJA', embalagem: '25KG' },
+            '1503A': { produto: 'LENTILHA VERMELHA', embalagem: '25KG' },
+            '1504': { produto: 'TEMPERO ORANGE PEPPER', embalagem: '10KG' },
+            '1505A': { produto: 'CEREJA CURIFRUTT SEM CABO 6X1,80', embalagem: '10,80KG' },
+            '1506': { produto: 'TEMPERO PARANAENSE', embalagem: '10KG' },
+            '1507A': { produto: 'AMEIXA SEM CAROCO 80/90', embalagem: '10KG' },
+            '1508A': { produto: 'MIX DE FRUTAS DESIDRATADAS IMP', embalagem: '5KG' },
+            '1509': { produto: 'MARAPUAMA EM PO', embalagem: '10KG' },
+            '1510': { produto: 'COUSCOUS MARROQUINO MEDIO - DARI', embalagem: '9KG' },
+            '1511': { produto: 'AROMA SABOR LIMAO', embalagem: '20KG' },
+            '1512': { produto: 'AROMA SABOR PEIXE', embalagem: '20KG' },
+            '1513': { produto: 'BETERRABA EM PO', embalagem: '25KG' },
+            '1513A': { produto: 'BETERRABA EM PO', embalagem: '25KG' },
+            '1514': { produto: 'OREGANO SELECIONADO PERUANO', embalagem: '10KG' },
+            '1515': { produto: 'GINSENG', embalagem: '25KG' },
+            '1516': { produto: 'EXTRASOY', embalagem: '20KG' },
+            '1517': { produto: 'EXTRATO DE SOJA', embalagem: '20KG' },
+            '1518': { produto: 'CASTANHA DE CAJU CARAMELIZADA COM CHOCOLATE', embalagem: '10KG' },
+            '1519': { produto: 'CORANTE MARROM', embalagem: '25KG' },
+            '1520': { produto: 'AROMA SABOR CAMARAO', embalagem: '20KG' },
+            '1521': { produto: 'OLEO DE SOJA REFINADO BB 900ML 18LT', embalagem: '16,20KG' },
+            '1522': { produto: 'AVEIA S/C FLOCOS FINOS', embalagem: '30KG' },
+            '1523': { produto: 'FARINHA DE AVEIA', embalagem: '30KG' },
+            '1524': { produto: 'FOLHA DE SENE', embalagem: '25KG' },
+            '1524A': { produto: 'FOLHA DE SENE', embalagem: '25KG' },
+            '1525': { produto: 'CORANTE NATURAL MARROM PO', embalagem: '25KG' },
+            '1526': { produto: 'PROTEINA DE SOJA CARAMELO', embalagem: '15KG' },
+            '1527': { produto: 'PROTEINA DE SOJA NATURAL', embalagem: '15KG' },
+            '1528': { produto: 'COCO FLOCOS', embalagem: '20KG' },
+            '1529': { produto: 'BARRINHA DE BANANA SEM ADICAO DE ACUCAR', embalagem: '10KG' },
+            '1530A': { produto: 'CANELA EM PO IMP PREMIUM', embalagem: '10KG' },
+            '1531A': { produto: 'PIMENTAO VERMELHO DES EM FLOCOS', embalagem: '25 KG' },
+            '1532A': { produto: 'MIX DE VEGETAIS CHIPS AGRIDOCE PREMIUM', embalagem: '5KG' },
+            '1533A': { produto: 'TAMARA COM CAROCO LARGE', embalagem: '5KG' },
+            '1534': { produto: 'PROTEINA DE SOJA EM PO NATURAL', embalagem: '20KG' },
+            '1536A': { produto: 'BISCOITO DE MILHO BBQ', embalagem: '8,50KG' },
+            '1537': { produto: 'LEMON PEPPER DEFUMADO', embalagem: '10KG' },
+            '1537A': { produto: 'BISCOITO DE MILHO C/PIMENTA', embalagem: '8,50KG' },
+            '1538': { produto: 'PROTEINA DE SOJA EM PO FINO', embalagem: '20KG' },
+            '1539': { produto: 'HIBISCUS FLOR QUEBRADO', embalagem: '25KG' },
+            '1540A': { produto: 'BISCOITO DE ARROZ SABOR CEBOLA E SALSA', embalagem: '5KG' },
+            '1541A': { produto: 'BISCOITO DE MILHO BBQ', embalagem: '6KG' },
+            '1542': { produto: 'FUNCHO SORTEX', embalagem: '25KG' },
+            '1543A': { produto: 'MILHO TOSTADO TRADICIONAL', embalagem: '10KG' },
+            '1544': { produto: 'ASHWAGANDHA EM PO', embalagem: '25KG' },
+            '1545': { produto: 'ASHWAGANDHA EM PO', embalagem: '10KG' },
+            '1546': { produto: 'COCO CHIPS S/PELICULA PREMIUM', embalagem: '12KG' },
+            '1547': { produto: 'COCO CHIPS C/PELICULA PREMIUM', embalagem: '12KG' },
+            '1548': { produto: 'PROVOLONE CHIPS DESIDRATADO', embalagem: '3,50KG' },
+            '1549': { produto: 'FARINHA PANKO BRANCA', embalagem: '15KG' },
+            '1550': { produto: 'CASTANHA DE CAJU SLW1 TORRADA E SALGADA', embalagem: '11,34KG' },
+            '1551': { produto: 'CASTANHA DE CAJU SLW1 TORRADA SEM SAL', embalagem: '11,34KG' },
+            '1552A': { produto: 'AMEIXA SEM CAROCO 176/198', embalagem: '10KG' },
+            '1553A': { produto: 'UVA PASSA PRETA UZBEQUISTAO', embalagem: '5 KG' },
+            '1554A': { produto: 'CEBOLA DESIDRATADA CRISPY', embalagem: '15KG' },
+            '1555A': { produto: 'SPIRULINA PO', embalagem: '20KG' },
+            '1556': { produto: 'LOURO TURCO', embalagem: '20KG' },
+            '010006': { produto: 'SEMENTE DE URUCUM', embalagem: '50KG' },
+            '070002': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070003': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070004': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070005': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070006': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070007': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070008': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070009': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070010': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070011': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070012': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070013': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070014': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070015': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070016': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070017': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070018': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070019': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070020': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070021': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070022': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070023': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070024': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070025': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070026': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '070027': { produto: 'COMPLEMENTO', embalagem: 'DE ICMS' },
+            '080001': { produto: 'CAYENNE GTS 15/16', embalagem: '' },
+            '080002': { produto: 'ARQUIVO DE AÇO', embalagem: '' },
+            '080003': { produto: 'ARMARIO', embalagem: 'ALTO PRETO' },
+            '080004': { produto: 'CADEIRA NR 17', embalagem: '' },
+            '080005': { produto: 'CADEIRA', embalagem: 'FIXA ESTEIRINHA' },
+            '080006': { produto: 'SOFA 3', embalagem: 'LUGARES VISION' },
+            '080007': { produto: 'GAVETEIRO', embalagem: '' },
+            '080008': { produto: 'MESA DELTA 180x160', embalagem: '' },
+            '080009': { produto: 'ARMARIO', embalagem: 'CHARUTO' },
+            '080010': { produto: 'MONITOR DELL DE 21,5', embalagem: 'POLEGADAS' },
+            '080011': { produto: 'SERVIDOR POWER EDGE T110', embalagem: '' },
+            '080012': { produto: 'SWITCH DELL NETWORKIN X1026', embalagem: '' },
+            '080013': { produto: 'MICROCOMPUTADOR', embalagem: 'DELL' },
+            '080014': { produto: 'MOUSE OPTICO DELL MS116M', embalagem: '' },
+            '080015': { produto: 'TECLADO ALFANUMERICO DE 107 TECLAS DELL KB216', embalagem: '' },
+            '080016': { produto: 'EMPILHADEIRA TOYOTA RETRATIL Modelo: 6FBR6 CHASSI: 35264 Cap.', embalagem: '2.680KG' },
+            '080017': { produto: 'CILINDROS COD. 655401290171', embalagem: '' },
+            '080020': { produto: 'A 250 HATCH VISION AUTOMOVEL MERCEDES-BENZ A 250', embalagem: 'HATCH VISION' },
+            '080024': { produto: 'UTILITARIO DE USO MISTO - PLACA EMA-2059-SP', embalagem: '' },
+            '080028': { produto: 'VEIC. MARCA IVECO. MOD. DAILY 35S14 HD CS.ANO/MOD.2019/2019', embalagem: '' },
+            '080029': { produto: 'CARROCERIA FURGAO CARGA SECA SERIE LEVE 4.200MM', embalagem: '' },
+            '080030': { produto: 'CBD15-AMA-SI PALETEIRA ELETRICA HANGCHA NR SERIE I4BJ70087', embalagem: '' },
+            '080031': { produto: 'CDD15-A2MJ2-ISZ EMPILHADEIRA ELETRICA PATOLADA HANGCHA NR SERIE 52BD02856', embalagem: '' },
+            '090001': { produto: 'ANULACAO', embalagem: 'DE FRETE' }
+        };
+
+        // ========== INICIALIZAÇÃO ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarDados();
+            carregarTema();
+            carregarColunasPersonalizadas();
+            gerarOpcoesRua();
+            inicializarNomeUsuario();
+            renderizarTabela();
+        });
+
+        // ========== GERENCIAMENTO DE TEMA ==========
+        function carregarTema() {
+            const tema = localStorage.getItem('tema') || 'green';
+            setTheme(tema, false);
+        }
+
+        function setTheme(tema, salvar = true) {
+            document.documentElement.setAttribute('data-theme', tema);
+            if (salvar) {
+                localStorage.setItem('tema', tema);
+            }
+            document.getElementById('themeOptions').classList.remove('active');
+        }
+
+        function toggleThemeMenu() {
+            document.getElementById('themeOptions').classList.toggle('active');
+        }
+
+        // ========== GERENCIAMENTO DE DADOS ==========
+        function carregarDados() {
+            // Sempre começa com os dados iniciais (pré-cadastrados)
+            dados = JSON.parse(JSON.stringify(dadosIniciais));
+            console.log('Total de itens carregados:', dados.length);
+            
+            // Carrega valores extras salvos (colunas personalizáveis)
+            const salvos = localStorage.getItem('inventario_extras');
+            if (salvos) {
+                const extras = JSON.parse(salvos);
+                const camposExtras = ['custom1', 'custom2', 'custom3', 'lote', 'validade'];
+                dados.forEach(item => {
+                    if (extras[item.codigo]) {
+                        camposExtras.forEach(campo => {
+                            item[campo] = extras[item.codigo][campo] || '';
+                        });
+                    } else {
+                        camposExtras.forEach(campo => {
+                            if (item[campo] === undefined) {
+                                item[campo] = '';
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        function salvarDados() {
+            // Salva apenas os valores extras (colunas personalizáveis) por código
+            const extras = {};
+            const camposExtras = ['custom1', 'custom2', 'custom3', 'lote', 'validade'];
+            dados.forEach(item => {
+                const possuiExtras = camposExtras.some(campo => {
+                    const valor = item[campo];
+                    return valor !== undefined && String(valor).trim() !== '';
+                });
+
+                if (possuiExtras) {
+                    extras[item.codigo] = camposExtras.reduce((acc, campo) => {
+                        acc[campo] = item[campo] || '';
+                        return acc;
+                    }, {});
+                }
+            });
+            localStorage.setItem('inventario_extras', JSON.stringify(extras));
+        }
+
+        // ========== NOME DO USUÁRIO / COLUNA FIXA ==========
+        function inicializarNomeUsuario() {
+            userName = localStorage.getItem('userName') || '';
+            aplicarNomeUsuario();
+            if (!userName) {
+                setTimeout(abrirModalNome, 400);
+            }
+        }
+
+        function aplicarNomeUsuario() {
+            const header = document.getElementById('userColHeader');
+            if (!header) return;
+            header.textContent = userName ? `Conferente: ${userName}` : 'Conferente';
+        }
+
+        function abrirModalNome() {
+            const modal = document.getElementById('nameModal');
+            if (!modal) return;
+            modal.classList.add('active');
+            const input = document.getElementById('nameInput');
+            if (input) {
+                input.value = '';
+                setTimeout(() => input.focus(), 150);
+            }
+        }
+
+        function fecharModalNome() {
+            const modal = document.getElementById('nameModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+        }
+
+        function salvarNomeUsuario() {
+            const input = document.getElementById('nameInput');
+            if (!input) return;
+            const nome = input.value.trim();
+            if (!nome) {
+                alert('Por favor, informe seu nome. / Please enter your name.');
+                input.focus();
+                return;
+            }
+            userName = nome;
+            localStorage.setItem('userName', userName);
+            aplicarNomeUsuario();
+            fecharModalNome();
+            renderizarTabela();
+        }
+
+        function resetarNomeUsuario() {
+            localStorage.removeItem('userName');
+            userName = '';
+            aplicarNomeUsuario();
+            renderizarTabela();
+            abrirModalNome();
+        }
+
+        function carregarColunasPersonalizadas() {
+            // A partir de agora, os nomes das colunas são fixos para manter o padrão:
+            // Cód. Produto | Descrição Produto | Qtde
+            // Limpamos qualquer configuração antiga salva no navegador.
+            localStorage.removeItem('colunasPersonalizadas');
+            colunasPersonalizadas = ['Cód. Produto', 'Descrição Produto', 'Qtde'];
+            atualizarNomesColunas();
+        }
+
+        function salvarColunasPersonalizadas() {
+            // Mantemos os nomes fixos; não salvamos mais alterações personalizadas.
+            return;
+        }
+
+        function atualizarNomesColunas() {
+            const headers = document.querySelectorAll('.custom-col-header');
+            headers.forEach((h, i) => {
+                h.textContent = colunasPersonalizadas[i];
+            });
+        }
+
+        function abrirModalExportacao() {
+            const modal = document.getElementById('exportModal');
+            if (!modal) return;
+            modal.classList.add('active');
+        }
+
+        function fecharModalExportacao() {
+            const modal = document.getElementById('exportModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+        }
+
+        function confirmarExportacao(planilha) {
+            fecharModalExportacao();
+            exportarExcel(planilha);
+        }
+
+        // ========== FILTROS ==========
+        function gerarOpcoesRua() {
+            const select = document.getElementById('filtroRua');
+            for (let i = 1; i <= 28; i++) {
+                const num = i.toString().padStart(2, '0');
+                const option = document.createElement('option');
+                option.value = `RUA ${num}`;
+                option.textContent = `RUA ${num}`;
+                select.appendChild(option);
+            }
+            const pisoOption = document.createElement('option');
+            pisoOption.value = 'PISO';
+            pisoOption.textContent = 'PISO';
+            select.appendChild(pisoOption);
+        }
+
+        function aplicarFiltro() {
+            renderizarTabela();
+        }
+
+        function filtrarDados({ incluirIndices = false } = {}) {
+            const ruaFiltro = document.getElementById('filtroRua').value;
+            const ladoFiltro = document.getElementById('filtroLado').value;
+
+            const resultado = [];
+
+            dados.forEach((item, index) => {
+                // Extrai rua do código (ex: PI01A0101 -> RUA 01, IN02A0102 -> RUA 02)
+                const isPiso = item.codigo.startsWith('PS');
+                const ruaMatch = item.codigo.match(/\d{2}/);
+                const ruaItem = isPiso ? 'PISO' : (ruaMatch ? 'RUA ' + ruaMatch[0] : '');
+
+                // Extrai lado do código (ex: PI01A0101 -> A, PI01B0101 -> B)
+                const ladoMatch = item.codigo.match(/[AB](?=\d{4})/);
+                const ladoItem = ladoMatch ? ladoMatch[0] : '';
+
+                const matchRua = !ruaFiltro || ruaItem === ruaFiltro;
+                const matchLado = !ladoFiltro || ladoItem === ladoFiltro;
+
+                if (matchRua && matchLado) {
+                    resultado.push(incluirIndices ? { item, index } : item);
+                }
+            });
+
+            return resultado;
+        }
+
+        function extrairNumeroRua(codigo) {
+            if (!codigo) {
+                return null;
+            }
+
+            const codigoNormalizado = String(codigo).toUpperCase();
+
+            if (codigoNormalizado.startsWith('PS')) {
+                const pisoMatch = codigoNormalizado.match(/PS(\d{2})/);
+                return pisoMatch ? parseInt(pisoMatch[1], 10) : null;
+            }
+
+            const match = codigoNormalizado.match(/\d{2}/);
+            return match ? parseInt(match[0], 10) : null;
+        }
+
+        function determinarArmazem(codigo) {
+            const numeroRua = extrairNumeroRua(codigo);
+            if (numeroRua === null) return '';
+            if (numeroRua >= 1 && numeroRua <= 20) return '01';
+            if (numeroRua >= 21 && numeroRua <= 26) return '02';
+            if (numeroRua >= 27 && numeroRua <= 28) return '99';
+            return '';
+        }
+
+        // ========== RENDERIZAÇÃO ==========
+        function buscarProdutoPorCodigo(codigoBruto) {
+            // Normaliza o código digitado:
+            // - remove espaços
+            // - coloca em maiúsculo
+            // - remove zeros à esquerda para casar códigos como "010006" -> "10006"
+            const codigo = String(codigoBruto || '').trim().toUpperCase();
+            if (!codigo) return null;
+
+            const semZeros = codigo.replace(/^0+/, '') || codigo;
+
+            return (
+                PRODUTOS[codigo] ||
+                PRODUTOS[semZeros] ||
+                null
+            );
+        }
+
+        function obterConferenteParaItem(item) {
+            const possuiDados = ['custom1', 'custom2', 'custom3', 'lote', 'validade'].some(campo => {
+                const valor = item[campo];
+                return valor !== undefined && String(valor).trim() !== '';
+            });
+            return possuiDados ? userName : '';
+        }
+
+        function renderizarTabela() {
+            const corpo = document.getElementById('corpoTabela');
+            const mensagem = document.getElementById('mensagemVazia');
+            const dadosFiltrados = filtrarDados({ incluirIndices: true });
+            
+            corpo.innerHTML = '';
+            
+            if (dadosFiltrados.length === 0) {
+                mensagem.style.display = 'block';
+                return;
+            }
+            
+            mensagem.style.display = 'none';
+            
+            dadosFiltrados.forEach(({ item, index: idxReal }) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="cell-fixed">${item.codigo}</span></td>
+                    <td><span class="cell-fixed">${item.descricao}</span></td>
+                    <td><span class="cell-fixed">${determinarArmazem(item.codigo)}</span></td>
+                    <td><input type="text" class="cell-input custom-col" value="${item.custom1 || ''}" onchange="atualizarCodigoProduto(${idxReal}, this.value)" placeholder="Cód. prod."></td>
+                    <td><input type="text" class="cell-input custom-col" value="${item.custom2 || ''}" readonly></td>
+                    <td><input type="text" class="cell-input custom-col" value="${item.custom3 || ''}" onchange="atualizarQtde(${idxReal}, this.value)" placeholder="Qtde"></td>
+                    <td><input type="text" class="cell-input custom-col" value="${item.lote || ''}" onchange="atualizarLote(${idxReal}, this.value)" placeholder="Lote"></td>
+                    <td><input type="text" class="cell-input custom-col" value="${item.validade || ''}" onchange="atualizarValidade(${idxReal}, this.value)" placeholder="Validade"></td>
+                    <td><span class="cell-fixed">${obterConferenteParaItem(item)}</span></td>
+                `;
+                corpo.appendChild(tr);
+            });
+        }
+
+        function gerarOpcoesRuaHTML(selecionada) {
+            let html = '';
+            for (let i = 1; i <= 28; i++) {
+                const num = i.toString().padStart(2, '0');
+                const valor = `RUA ${num}`;
+                html += `<option value="${valor}" ${selecionada === valor ? 'selected' : ''}>${valor}</option>`;
+            }
+            return html;
+        }
+
+        // ========== AÇÕES ==========
+        function adicionarLinha() {
+            dados.push({
+                codigo: '',
+                descricao: '',
+                custom1: '',
+                custom2: '',
+                custom3: '',
+                lote: '',
+                validade: ''
+            });
+            salvarDados();
+            renderizarTabela();
+            
+            // Scroll para a última linha
+            setTimeout(() => {
+                const container = document.querySelector('.table-scroll');
+                container.scrollTop = container.scrollHeight;
+            }, 100);
+        }
+
+        function atualizarCampo(idx, campo, valor) {
+            dados[idx][campo] = String(valor);
+            salvarDados();
+            renderizarTabela();
+        }
+
+        function atualizarCodigoProduto(idx, valor) {
+            const codigo = String(valor || '').trim().toUpperCase();
+            dados[idx].custom1 = codigo;
+
+            const info = buscarProdutoPorCodigo(codigo);
+            if (info) {
+                const desc = info.embalagem
+                    ? `${info.produto} - ${info.embalagem}`
+                    : info.produto;
+                dados[idx].custom2 = desc;
+            } else {
+                dados[idx].custom2 = '';
+            }
+            salvarDados();
+            renderizarTabela();
+        }
+
+        function atualizarQtde(idx, valor) {
+            dados[idx].custom3 = String(valor || '');
+            salvarDados();
+            renderizarTabela();
+        }
+
+        function atualizarLote(idx, valor) {
+            dados[idx].lote = String(valor || '');
+            salvarDados();
+            renderizarTabela();
+        }
+
+        function atualizarValidade(idx, valor) {
+            dados[idx].validade = String(valor || '');
+            salvarDados();
+            renderizarTabela();
+        }
+
+        function excluirLinha(idx) {
+            if (confirm('Deseja excluir este item?')) {
+                dados.splice(idx, 1);
+                salvarDados();
+                renderizarTabela();
+            }
+        }
+
+        function editarNomeColuna(idx) {
+            const novoNome = prompt('Nome da coluna:', colunasPersonalizadas[idx]);
+            if (novoNome && novoNome.trim()) {
+                colunasPersonalizadas[idx] = novoNome.trim();
+                salvarColunasPersonalizadas();
+                atualizarNomesColunas();
+            }
+        }
+
+        // ========== EXPORTAÇÃO EXCEL ==========
+        async function exportarExcel(planilhaDestino = 'Planilha1') {
+            if (!Array.isArray(dados) || dados.length === 0) {
+                alert('Nenhum dado para enviar!');
+                return;
+            }
+
+            const payload = {
+                records: dados.map(item => ({
+                    codigo: String(item.codigo || ''),
+                    descricao: String(item.descricao || ''),
+                    armazem: String(determinarArmazem(item.codigo) || ''),
+                    custom1: String(item.custom1 || ''),
+                    custom2: String(item.custom2 || ''),
+                    custom3: String(item.custom3 || ''),
+                    lote: String(item.lote || ''),
+                    validade: String(item.validade || ''),
+                    conferente: String(obterConferenteParaItem(item) || ''),
+                })),
+                clearBefore: false,
+                includeHeader: true,
+                destinoPlanilha: planilhaDestino,
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/export`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const texto = await response.text();
+                    throw new Error(texto || 'Erro desconhecido');
+                }
+
+                const resultado = await response.json();
+                // Se o backend retornou relatório detalhado
+                if (resultado.report) {
+                    const rep = resultado.report;
+                    let msg = `Adicionadas: ${rep.added || 0}. Atualizadas: ${rep.updated || 0}.`;
+                    if (rep.conflicts && rep.conflicts.length) {
+                        msg += `\nConflitos (${rep.conflicts.length}): `;
+                        msg += rep.conflicts.slice(0, 5).map(c => `${c.codigo} -> ${c.column}`).join(', ');
+                        if (rep.conflicts.length > 5) msg += ` e mais ${rep.conflicts.length - 5}...`;
+                    }
+                    alert(msg);
+                } else {
+                    alert(`Planilha atualizada com ${resultado.rows ?? payload.records.length} linhas!`);
+                }
+            } catch (erro) {
+                console.error('Falha ao sincronizar com Google Sheets:', erro);
+                alert('Não foi possível sincronizar com o Google Sheets. Verifique se o servidor está rodando e tente novamente.');
+            }
+        }
+
+        // Resetar para dados iniciais
+        function resetarDados() {
+            if (confirm('Isso vai apagar todos os dados e restaurar os dados iniciais. Continuar?')) {
+                dados = JSON.parse(JSON.stringify(dadosIniciais));
+                salvarDados();
+                renderizarTabela();
+                alert('Dados resetados! ' + dados.length + ' itens carregados.');
+            }
+        }
+
+        // Fechar menu de tema ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.theme-container')) {
+                document.getElementById('themeOptions').classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
+

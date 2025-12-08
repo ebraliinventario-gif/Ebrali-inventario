@@ -1,0 +1,13 @@
+{
+  "name": "ebrali-inventario-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "homepage": "https://seuusuario.github.io/nome-do-repo",
+  "scripts": {
+    "build": "node build-frontend.js",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
+}
