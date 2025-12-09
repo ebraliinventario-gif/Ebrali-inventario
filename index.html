@@ -72,18 +72,15 @@
         <!-- Modal de Nome -->
         <div id="nameModal" class="name-modal-backdrop">
             <div class="name-modal">
-                <div class="name-modal-video"></div>
                 <div class="name-modal-content">
-                    <div class="name-modal-title">Bem-vindo!</div>
-                    <div class="name-modal-subtitle">
-                        QUAL O SEU NOME?
-                        <span>WHAT IS YOUR NAME?</span>
-                    </div>
-                    <input id="nameInput" class="name-input" type="text" placeholder="Ex: Anderson" autocomplete="name"
+                    <div class="name-modal-badge">Identificação rápida</div>
+                    <div class="name-modal-title">Qual é o seu nome?</div>
+                    <div class="name-modal-subtitle">Precisamos dele para marcar quem está conferindo os endereços.</div>
+                    <input id="nameInput" class="name-input" type="text" placeholder="Digite seu nome" autocomplete="name"
                            onkeydown="if(event.key==='Enter'){salvarNomeUsuario();}">
                     <div class="name-modal-footer">
                         <button type="button" class="name-btn name-btn-primary" onclick="salvarNomeUsuario()">
-                            Confirmar / Confirm
+                            Começar
                         </button>
                     </div>
                 </div>
@@ -2339,6 +2336,13 @@
             pisoOption.value = 'PISO';
             pisoOption.textContent = 'PISO';
             select.appendChild(pisoOption);
+
+            // Define filtro padrão para reduzir o volume inicial exibido
+            const filtroPadrao = 'RUA 01';
+            const possuiPadrao = Array.from(select.options).some(opt => opt.value === filtroPadrao);
+            if (possuiPadrao) {
+                select.value = filtroPadrao;
+            }
         }
 
         function aplicarFiltro() {
