@@ -35,8 +35,10 @@
         { codigo: 'PS28P0000', descricao: 'PISO INDUSTRIA - RUA 28' }
     ];
 
-    window.initialData = window.initialData.concat(
-        pisoEntries.map(item => ({
+    const REPETICOES_PISO = 15;
+
+    const pisoEntriesRepetidos = pisoEntries.flatMap(item =>
+        Array.from({ length: REPETICOES_PISO }, () => ({
             codigo: item.codigo,
             descricao: item.descricao,
             custom1: '',
@@ -44,4 +46,6 @@
             custom3: ''
         }))
     );
+
+    window.initialData = window.initialData.concat(pisoEntriesRepetidos);
 })();
