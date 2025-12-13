@@ -1,7 +1,8 @@
 import os
 import json
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from collections import deque
+from typing import Deque, Iterable, List, Sequence
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -163,12 +164,14 @@ def salvar_linhas(
         header_present = True
         data_start_index = 1
 
-    code_to_row = {}
+    code_to_rows: dict[str, Deque[tuple[int, List[str]]]] = {}
     for i, row in enumerate(existing[data_start_index:], start=data_start_index + 1):
         if not row:
             continue
         codigo = row[0] if len(row) > 0 else ""
-        code_to_row[str(codigo).strip()] = (i, [str(v) for v in row] + [""] * max(0, len(HEADERS) - len(row)))
+        normalizada = [str(v) for v in row] + [""] * max(0, len(HEADERS) - len(row))
+        chave = str(codigo).strip()
+        code_to_rows.setdefault(chave, deque()).append((i, normalizada))
 
     to_append: List[List[str]] = []
     updated = 0
@@ -181,8 +184,9 @@ def salvar_linhas(
             to_append.append(registro)
             continue
 
-        if codigo in code_to_row:
-            row_idx, existing_row = code_to_row[codigo]
+        queue = code_to_rows.get(codigo)
+        if queue:
+            row_idx, existing_row = queue.popleft()
             # normalize existing row length
             existing_row = (existing_row + [""] * len(HEADERS))[: len(HEADERS)]
             new_row = existing_row.copy()
