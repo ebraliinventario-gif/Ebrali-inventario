@@ -477,6 +477,30 @@
         // custom3 -> quantidade
         let colunasPersonalizadas = ['Cód. Produto', 'Descrição Produto', 'Qtde'];
         let userName = '';
+        let idCounterSequencial = 0;
+
+        function gerarItemIdUnico(item, index = null) {
+            if (item._id) {
+                return item._id;
+            }
+            if (index !== null && index !== undefined) {
+                const idx = String(index).padStart(4, '0');
+                item._id = `${String(item.codigo || 'SEM_CODIGO')}-${idx}`;
+            } else {
+                idCounterSequencial += 1;
+                item._id = `USR-${Date.now()}-${idCounterSequencial}`;
+            }
+            return item._id;
+        }
+
+        function prepararItemBase(item, index) {
+            gerarItemIdUnico(item, index);
+            ['custom1', 'custom2', 'custom3', 'lote', 'validade'].forEach(campo => {
+                if (item[campo] === undefined) {
+                    item[campo] = '';
+                }
+            });
+        }
 
         // ========== TABELA DE PRODUTOS ==========
         // Mapa simples código -> { produto, embalagem }
@@ -2186,6 +2210,7 @@
             // Sempre começa com os dados iniciais (pré-cadastrados)
             dados = JSON.parse(JSON.stringify(dadosIniciais));
             console.log('Total de itens carregados:', dados.length);
+            dados.forEach((item, index) => prepararItemBase(item, index));
             
             // Carrega valores extras salvos (colunas personalizáveis)
             const salvos = localStorage.getItem('inventario_extras');
@@ -2193,9 +2218,11 @@
                 const extras = JSON.parse(salvos);
                 const camposExtras = ['custom1', 'custom2', 'custom3', 'lote', 'validade'];
                 dados.forEach(item => {
-                    if (extras[item.codigo]) {
+                    const chaveAtual = gerarItemIdUnico(item);
+                    const registroExtra = extras[chaveAtual] || extras[item.codigo];
+                    if (registroExtra) {
                         camposExtras.forEach(campo => {
-                            item[campo] = extras[item.codigo][campo] || '';
+                            item[campo] = registroExtra[campo] || '';
                         });
                     } else {
                         camposExtras.forEach(campo => {
@@ -2212,14 +2239,15 @@
             // Salva apenas os valores extras (colunas personalizáveis) por código
             const extras = {};
             const camposExtras = ['custom1', 'custom2', 'custom3', 'lote', 'validade'];
-            dados.forEach(item => {
+            dados.forEach((item, index) => {
+                const chave = gerarItemIdUnico(item, index);
                 const possuiExtras = camposExtras.some(campo => {
                     const valor = item[campo];
                     return valor !== undefined && String(valor).trim() !== '';
                 });
 
                 if (possuiExtras) {
-                    extras[item.codigo] = camposExtras.reduce((acc, campo) => {
+                    extras[chave] = camposExtras.reduce((acc, campo) => {
                         acc[campo] = item[campo] || '';
                         return acc;
                     }, {});
@@ -2470,7 +2498,7 @@
 
         // ========== AÇÕES ==========
         function adicionarLinha() {
-            dados.push({
+            const novoItem = {
                 codigo: '',
                 descricao: '',
                 custom1: '',
@@ -2478,7 +2506,9 @@
                 custom3: '',
                 lote: '',
                 validade: ''
-            });
+            };
+            prepararItemBase(novoItem);
+            dados.push(novoItem);
             salvarDados();
             renderizarTabela();
             
@@ -2609,6 +2639,7 @@
         function resetarDados() {
             if (confirm('Isso vai apagar todos os dados e restaurar os dados iniciais. Continuar?')) {
                 dados = JSON.parse(JSON.stringify(dadosIniciais));
+                dados.forEach((item, index) => prepararItemBase(item, index));
                 salvarDados();
                 renderizarTabela();
                 alert('Dados resetados! ' + dados.length + ' itens carregados.');
