@@ -16,19 +16,6 @@ PLANILHA_ALIASES = {
     "contagem02": "Planilha2",
 }
 
-PLANILHA_HEADERS = [
-    "ID Interno",
-    "Código Endereço",
-    "Descrição Endereço",
-    "Armazém",
-    "Cód. Produto",
-    "Descrição Produto",
-    "Qtde",
-    "Lote",
-    "Validade",
-    "Conferente",
-]
-
 def _resolver_destino_planilha(valor: str | None) -> str | None:
     if not valor:
         return None
@@ -62,7 +49,6 @@ def serve_static(filename):
 def _record_to_row(record):
     """Converte um dicionário vindo do front em uma linha para a planilha."""
     return [
-        record.get("id_interno", ""),
         record.get("codigo", ""),
         record.get("descricao", ""),
         record.get("armazem", ""),

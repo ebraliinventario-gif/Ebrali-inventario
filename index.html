@@ -478,43 +478,17 @@
         let colunasPersonalizadas = ['Cód. Produto', 'Descrição Produto', 'Qtde'];
         let userName = '';
         let idCounterSequencial = 0;
-        const SESSION_ID_STORAGE_KEY = 'inventario_session_id';
-        let sessionIdCache = null;
-
-        function obterSessionId() {
-            if (sessionIdCache) {
-                return sessionIdCache;
-            }
-            try {
-                const existente = localStorage.getItem(SESSION_ID_STORAGE_KEY);
-                if (existente) {
-                    sessionIdCache = existente;
-                    return sessionIdCache;
-                }
-            } catch (err) {
-                console.warn('Não foi possível acessar o localStorage para sessionId:', err);
-            }
-            const novoId = `S${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
-            sessionIdCache = novoId;
-            try {
-                localStorage.setItem(SESSION_ID_STORAGE_KEY, novoId);
-            } catch (err) {
-                console.warn('Não foi possível salvar sessionId no localStorage:', err);
-            }
-            return sessionIdCache;
-        }
 
         function gerarItemIdUnico(item, index = null) {
             if (item._id) {
                 return item._id;
             }
-            const sessionPrefix = obterSessionId();
             if (index !== null && index !== undefined) {
                 const idx = String(index).padStart(4, '0');
-                item._id = `${sessionPrefix}-${String(item.codigo || 'SEM_CODIGO')}-${idx}`;
+                item._id = `${String(item.codigo || 'SEM_CODIGO')}-${idx}`;
             } else {
                 idCounterSequencial += 1;
-                item._id = `${sessionPrefix}-USR-${Date.now()}-${idCounterSequencial}`;
+                item._id = `USR-${Date.now()}-${idCounterSequencial}`;
             }
             return item._id;
         }
