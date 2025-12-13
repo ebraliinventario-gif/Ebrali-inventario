@@ -2585,17 +2585,21 @@
             }
 
             const payload = {
-                records: dados.map(item => ({
-                    codigo: String(item.codigo || ''),
-                    descricao: String(item.descricao || ''),
-                    armazem: String(determinarArmazem(item.codigo) || ''),
-                    custom1: String(item.custom1 || ''),
-                    custom2: String(item.custom2 || ''),
-                    custom3: String(item.custom3 || ''),
-                    lote: String(item.lote || ''),
-                    validade: String(item.validade || ''),
-                    conferente: String(obterConferenteParaItem(item) || ''),
-                })),
+                records: dados.map((item, idx) => {
+                    const idInterno = gerarItemIdUnico(item, idx);
+                    return {
+                        id_interno: String(idInterno || ''),
+                        codigo: String(item.codigo || ''),
+                        descricao: String(item.descricao || ''),
+                        armazem: String(determinarArmazem(item.codigo) || ''),
+                        custom1: String(item.custom1 || ''),
+                        custom2: String(item.custom2 || ''),
+                        custom3: String(item.custom3 || ''),
+                        lote: String(item.lote || ''),
+                        validade: String(item.validade || ''),
+                        conferente: String(obterConferenteParaItem(item) || ''),
+                    };
+                }),
                 clearBefore: false,
                 includeHeader: true,
                 destinoPlanilha: planilhaDestino,

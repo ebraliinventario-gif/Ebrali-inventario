@@ -35,6 +35,7 @@ def _resolver_destino_planilha(valor: Optional[str]) -> Optional[str]:
 
 
 class Record(BaseModel):
+    id_interno: str = ""
     codigo: str = ""
     descricao: str = ""
     armazem: str = ""
@@ -86,6 +87,7 @@ app.add_middleware(
 def _record_to_row(record: Record) -> list[str]:
     dados = record.dict()
     return [
+        dados.get("id_interno", ""),
         dados.get("codigo", ""),
         dados.get("descricao", ""),
         dados.get("armazem", ""),

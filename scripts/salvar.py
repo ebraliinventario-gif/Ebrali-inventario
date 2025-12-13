@@ -33,6 +33,7 @@ for chave, valor in DEFAULT_ENV.items():
         os.environ[chave] = valor
 
 HEADERS = [
+    "ID Interno",
     "Código Endereço",
     "Descrição Endereço",
     "Armazém",
@@ -160,17 +161,33 @@ def salvar_linhas(
     # Detect header row
     data_start_index = 0
     header_present = False
-    if existing and existing[0] == HEADERS:
-        header_present = True
-        data_start_index = 1
+    legacy_header = False
+    if existing:
+        if existing[0] == HEADERS:
+            header_present = True
+            data_start_index = 1
+        elif existing[0] == HEADERS[1:]:
+            header_present = True
+            legacy_header = True
+            data_start_index = 1
+
+    if legacy_header:
+        end_col = chr(ord("A") + len(HEADERS) - 1)
+        destino.update(f"A1:{end_col}1", [HEADERS])
 
     code_to_rows: dict[str, Deque[tuple[int, List[str]]]] = {}
     for i, row in enumerate(existing[data_start_index:], start=data_start_index + 1):
         if not row:
             continue
-        codigo = row[0] if len(row) > 0 else ""
-        normalizada = [str(v) for v in row] + [""] * max(0, len(HEADERS) - len(row))
-        chave = str(codigo).strip()
+        row_values = row
+        if legacy_header:
+            row_values = [""] + row_values
+        normalizada = [str(v) for v in row_values] + [""] * max(0, len(HEADERS) - len(row_values))
+        id_interno = normalizada[0].strip()
+        codigo_endereco = normalizada[1].strip()
+        chave = id_interno or codigo_endereco
+        if not chave:
+            continue
         code_to_rows.setdefault(chave, deque()).append((i, normalizada))
 
     to_append: List[List[str]] = []
@@ -178,13 +195,15 @@ def salvar_linhas(
     conflicts: List[dict] = []
 
     for registro in registros:
-        codigo = registro[0].strip()
-        if codigo == "":
-            # no code, treat as new row
+        id_interno = registro[0].strip()
+        codigo = registro[1].strip() if len(registro) > 1 else ""
+        chave_registro = id_interno or codigo
+        if chave_registro == "":
+            # no key, treat as new row
             to_append.append(registro)
             continue
 
-        queue = code_to_rows.get(codigo)
+        queue = code_to_rows.get(chave_registro)
         if queue:
             row_idx, existing_row = queue.popleft()
             # normalize existing row length
