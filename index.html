@@ -32,10 +32,10 @@
 <body>
     <!-- ========== HEADER ========== -->
     <header class="header">
-        <div class="header-top">
-            <div class="header-mini header-mini-left">
+        <div class="header-bar">
+            <div class="header-filter-group header-filter-left">
                 <label for="filtroRua">Rua ativa</label>
-                <select id="filtroRua" class="mini-select" onchange="aplicarFiltro()">
+                <select id="filtroRua" class="header-filter-select" onchange="aplicarFiltro()">
                     <option value="">Todas as Ruas</option>
                 </select>
             </div>
@@ -43,9 +43,9 @@
                 <img src="logo_ebrali-2025.png" alt="Logo Ebrali" class="logo-img">
                 <span class="header-title">Controle de Inventário</span>
             </div>
-            <div class="header-mini header-mini-right">
+            <div class="header-filter-group header-filter-right">
                 <label for="filtroLado">Lado</label>
-                <select id="filtroLado" class="mini-select" onchange="aplicarFiltro()">
+                <select id="filtroLado" class="header-filter-select" onchange="aplicarFiltro()">
                     <option value="">Todos os Lados</option>
                     <option value="A">Lado A</option>
                     <option value="B">Lado B</option>
