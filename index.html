@@ -2360,10 +2360,6 @@
                 option.textContent = `RUA ${num}`;
                 select.appendChild(option);
             }
-            const pisoOption = document.createElement('option');
-            pisoOption.value = 'PISO';
-            pisoOption.textContent = 'PISO';
-            select.appendChild(pisoOption);
 
             // Define filtro padrão para reduzir o volume inicial exibido
             const filtroPadrao = 'RUA 01';
@@ -2387,7 +2383,15 @@
                 // Extrai rua do código (ex: PI01A0101 -> RUA 01, IN02A0102 -> RUA 02)
                 const isPiso = item.codigo.startsWith('PS');
                 const ruaMatch = item.codigo.match(/\d{2}/);
-                const ruaItem = isPiso ? 'PISO' : (ruaMatch ? 'RUA ' + ruaMatch[0] : '');
+                let ruaItem = ruaMatch ? 'RUA ' + ruaMatch[0] : '';
+
+                if (isPiso) {
+                    const ruaDescricaoMatch = (item.descricao || '').match(/RUA\s*(\d{2})/i);
+                    if (ruaDescricaoMatch && ruaDescricaoMatch[1]) {
+                        const numero = ruaDescricaoMatch[1].padStart(2, '0');
+                        ruaItem = `RUA ${numero}`;
+                    }
+                }
 
                 // Extrai lado do código (ex: PI01A0101 -> A, PI01B0101 -> B)
                 const ladoMatch = item.codigo.match(/[AB](?=\d{4})/);
