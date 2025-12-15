@@ -2228,12 +2228,7 @@
         }
 
         function setTheme(tema, salvar = true) {
-            const root = document.documentElement;
-            root.classList.add('theme-transition');
-            requestAnimationFrame(() => {
-                root.setAttribute('data-theme', tema);
-                setTimeout(() => root.classList.remove('theme-transition'), 450);
-            });
+            document.documentElement.setAttribute('data-theme', tema);
             if (salvar) {
                 localStorage.setItem('tema', tema);
             }

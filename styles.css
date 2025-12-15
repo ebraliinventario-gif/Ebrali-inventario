@@ -86,11 +86,6 @@
     box-sizing: border-box;
 }
 
-:root.theme-transition,
-:root.theme-transition * {
-    transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease !important;
-}
-
 body {
     font-family: 'Inter', sans-serif;
     background: var(--bg);
