@@ -32,9 +32,25 @@
 <body>
     <!-- ========== HEADER ========== -->
     <header class="header">
-        <div class="logo-area">
-            <img src="logo_ebrali-2025.png" alt="Logo Ebrali" class="logo-img">
-            <span class="header-title">Controle de Inventário</span>
+        <div class="header-top">
+            <div class="header-mini header-mini-left">
+                <label for="miniFiltroRua">Rua ativa</label>
+                <select id="miniFiltroRua" class="mini-select" onchange="sincronizarFiltroRua(this.value)">
+                    <option value="">Todas as Ruas</option>
+                </select>
+            </div>
+            <div class="logo-area">
+                <img src="logo_ebrali-2025.png" alt="Logo Ebrali" class="logo-img">
+                <span class="header-title">Controle de Inventário</span>
+            </div>
+            <div class="header-mini header-mini-right">
+                <label for="miniFiltroLado">Lado</label>
+                <select id="miniFiltroLado" class="mini-select" onchange="sincronizarFiltroLado(this.value)">
+                    <option value="">Todos os Lados</option>
+                    <option value="A">Lado A</option>
+                    <option value="B">Lado B</option>
+                </select>
+            </div>
         </div>
         <div class="header-actions">
             <button class="btn-export" onclick="resetarNomeUsuario()">
@@ -112,6 +128,24 @@
             </div>
         </div>
 
+        <!-- Status Exportação -->
+        <div id="exportStatusModal" class="status-modal-backdrop">
+            <div class="status-modal">
+                <div class="status-header">
+                    <div class="status-indicator" id="exportStatusIndicator"></div>
+                    <div>
+                        <div class="status-title" id="exportStatusTitle">Exportando...</div>
+                        <div class="status-subtitle" id="exportStatusSubtitle">Preparando registros</div>
+                    </div>
+                </div>
+                <div class="status-progress" aria-hidden="true">
+                    <div class="status-progress-bar" id="exportStatusBar"></div>
+                </div>
+                <div class="status-metrics" id="exportStatusMetrics"></div>
+                <button type="button" class="status-btn" onclick="fecharStatusExportacao()" id="exportStatusButton">Ok</button>
+            </div>
+        </div>
+
         <!-- Tabela -->
         <div class="table-container">
             <div class="table-scroll">
@@ -151,6 +185,7 @@
             <div class="theme-option green" onclick="setTheme('green')" title="Verde"></div>
             <div class="theme-option blue" onclick="setTheme('blue')" title="Azul"></div>
             <div class="theme-option purple" onclick="setTheme('purple')" title="Roxo"></div>
+            <div class="theme-option red" onclick="setTheme('red')" title="Vermelho"></div>
             <div class="theme-option dark" onclick="setTheme('dark')" title="Escuro"></div>
         </div>
     </div>
@@ -2358,25 +2393,53 @@
 
         // ========== FILTROS ==========
         function gerarOpcoesRua() {
-            const select = document.getElementById('filtroRua');
+            const selectPrincipal = document.getElementById('filtroRua');
+            const selectMini = document.getElementById('miniFiltroRua');
+            [selectPrincipal, selectMini].forEach(sel => {
+                // mantém somente a primeira opção "Todas"
+                sel.innerHTML = '<option value="">Todas as Ruas</option>';
+            });
+
             for (let i = 1; i <= 28; i++) {
                 const num = i.toString().padStart(2, '0');
-                const option = document.createElement('option');
-                option.value = `RUA ${num}`;
-                option.textContent = `RUA ${num}`;
-                select.appendChild(option);
+                const valor = `RUA ${num}`;
+                [selectPrincipal, selectMini].forEach(sel => {
+                    const option = document.createElement('option');
+                    option.value = valor;
+                    option.textContent = valor;
+                    sel.appendChild(option);
+                });
             }
 
             // Define filtro padrão para reduzir o volume inicial exibido
             const filtroPadrao = 'RUA 01';
-            const possuiPadrao = Array.from(select.options).some(opt => opt.value === filtroPadrao);
+            const possuiPadrao = Array.from(selectPrincipal.options).some(opt => opt.value === filtroPadrao);
             if (possuiPadrao) {
-                select.value = filtroPadrao;
+                selectPrincipal.value = filtroPadrao;
+                selectMini.value = filtroPadrao;
             }
         }
 
         function aplicarFiltro() {
+            document.getElementById('miniFiltroRua').value = document.getElementById('filtroRua').value;
+            document.getElementById('miniFiltroLado').value = document.getElementById('filtroLado').value;
             renderizarTabela();
+        }
+
+        function sincronizarFiltroRua(valor) {
+            const selectPrincipal = document.getElementById('filtroRua');
+            if (selectPrincipal.value !== valor) {
+                selectPrincipal.value = valor;
+                renderizarTabela();
+            }
+        }
+
+        function sincronizarFiltroLado(valor) {
+            const selectPrincipal = document.getElementById('filtroLado');
+            if (selectPrincipal.value !== valor) {
+                selectPrincipal.value = valor;
+                renderizarTabela();
+            }
         }
 
         function filtrarDados({ incluirIndices = false } = {}) {
@@ -2616,6 +2679,7 @@
             };
 
             try {
+                abrirStatusExportacao({ status: 'queue', title: 'Na fila', subtitle: 'Aguardando liberação do servidor' });
                 const response = await fetch(`${API_BASE_URL}/api/export`, {
                     method: 'POST',
                     headers: {
@@ -2630,23 +2694,88 @@
                 }
 
                 const resultado = await response.json();
-                // Se o backend retornou relatório detalhado
-                if (resultado.report) {
-                    const rep = resultado.report;
-                    let msg = `Adicionadas: ${rep.added || 0}. Atualizadas: ${rep.updated || 0}.`;
-                    if (rep.conflicts && rep.conflicts.length) {
-                        msg += `\nConflitos (${rep.conflicts.length}): `;
-                        msg += rep.conflicts.slice(0, 5).map(c => `${c.codigo} -> ${c.column}`).join(', ');
-                        if (rep.conflicts.length > 5) msg += ` e mais ${rep.conflicts.length - 5}...`;
-                    }
-                    alert(msg);
-                } else {
-                    alert(`Planilha atualizada com ${resultado.rows ?? payload.records.length} linhas!`);
-                }
+                atualizarStatusExportacao({
+                    status: 'processing',
+                    title: 'Exportando',
+                    subtitle: 'Gravando registros no Google Sheets',
+                    progress: 80,
+                });
+
+                mostrarResumoExportacao(resultado, payload.records.length);
             } catch (erro) {
                 console.error('Falha ao sincronizar com Google Sheets:', erro);
-                alert('Não foi possível sincronizar com o Google Sheets. Verifique se o servidor está rodando e tente novamente.');
+                atualizarStatusExportacao({
+                    status: 'error',
+                    title: 'Erro ao exportar',
+                    subtitle: erro?.message || 'Falha desconhecida',
+                    metrics: [],
+                    allowClose: true,
+                });
             }
+        }
+
+        function abrirStatusExportacao({ status, title, subtitle }) {
+            const modal = document.getElementById('exportStatusModal');
+            modal.classList.add('active');
+            atualizarStatusExportacao({ status, title, subtitle, progress: 20, allowClose: false });
+        }
+
+        function atualizarStatusExportacao({ status, title, subtitle, progress = 50, metrics = [], allowClose = false }) {
+            const indicator = document.getElementById('exportStatusIndicator');
+            indicator.className = `status-indicator status-${status}`;
+            document.getElementById('exportStatusTitle').textContent = title;
+            document.getElementById('exportStatusSubtitle').textContent = subtitle || '';
+            document.getElementById('exportStatusBar').style.width = `${progress}%`;
+
+            const metricsContainer = document.getElementById('exportStatusMetrics');
+            metricsContainer.innerHTML = '';
+            metrics.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'status-metric';
+                if (m.type === 'warning') div.classList.add('status-metric-warning');
+                if (m.type === 'muted') div.classList.add('status-metric-muted');
+                div.textContent = m.text;
+                metricsContainer.appendChild(div);
+            });
+
+            const btn = document.getElementById('exportStatusButton');
+            btn.disabled = !allowClose;
+        }
+
+        function mostrarResumoExportacao(resultado, totalEnviado) {
+            const { report, rows, timings } = resultado;
+            const added = report?.added ?? rows ?? 0;
+            const updated = report?.updated ?? 0;
+            const conflicts = report?.conflicts?.length ?? 0;
+            const lockWait = timings?.lockWaitMs ?? 0;
+            const processing = timings?.processingMs ?? 0;
+
+            const metrics = [
+                { text: `Novos registros: ${added}` },
+                { text: `Atualizações: ${updated}` },
+            ];
+
+            if (conflicts > 0) {
+                metrics.push({ text: `Conflitos ignorados: ${conflicts}`, type: 'warning' });
+            }
+
+            metrics.push({ text: `Tempo na fila: ${lockWait} ms`, type: lockWait > 2000 ? 'warning' : 'muted' });
+            metrics.push({ text: `Processamento: ${processing} ms`, type: 'muted' });
+            metrics.push({ text: `Total enviado: ${totalEnviado} linhas`, type: 'muted' });
+
+            atualizarStatusExportacao({
+                status: 'success',
+                title: 'Exportação concluída',
+                subtitle: 'Dados sincronizados com sucesso ✅',
+                progress: 100,
+                metrics,
+                allowClose: true,
+            });
+        }
+
+        function fecharStatusExportacao() {
+            const modal = document.getElementById('exportStatusModal');
+            modal.classList.remove('active');
         }
 
         // Resetar para dados iniciais
