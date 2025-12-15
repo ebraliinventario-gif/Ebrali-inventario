@@ -124,7 +124,7 @@ body {
 
 .header-top {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(150px, 1fr) auto minmax(120px, 1fr);
     gap: 12px;
     align-items: center;
 }
@@ -186,6 +186,7 @@ body {
     background: rgba(255,255,255,0.9);
     color: var(--primary-dark);
     outline: none;
+    width: 100%;
 }
 
 .btn-export {
@@ -215,9 +216,43 @@ body {
 }
 
 .main-content {
-    margin-top: 200px;
+    margin-top: var(--header-offset, 210px);
     padding: 15px;
     animation: fadeInUp 0.5s ease;
+}
+
+@media (max-width: 900px) {
+    .header-top {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .header-actions {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 600px) {
+    .header-top {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .header-mini {
+        width: 100%;
+    }
+
+    .logo-area {
+        order: -1;
+        padding: 0;
+    }
+
+    .logo-img {
+        max-width: 150px;
+    }
+
 }
 
 .filter-section {

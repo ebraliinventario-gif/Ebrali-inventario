@@ -34,8 +34,8 @@
     <header class="header">
         <div class="header-top">
             <div class="header-mini header-mini-left">
-                <label for="miniFiltroRua">Rua ativa</label>
-                <select id="miniFiltroRua" class="mini-select" onchange="sincronizarFiltroRua(this.value)">
+                <label for="filtroRua">Rua ativa</label>
+                <select id="filtroRua" class="mini-select" onchange="aplicarFiltro()">
                     <option value="">Todas as Ruas</option>
                 </select>
             </div>
@@ -44,8 +44,8 @@
                 <span class="header-title">Controle de Inventário</span>
             </div>
             <div class="header-mini header-mini-right">
-                <label for="miniFiltroLado">Lado</label>
-                <select id="miniFiltroLado" class="mini-select" onchange="sincronizarFiltroLado(this.value)">
+                <label for="filtroLado">Lado</label>
+                <select id="filtroLado" class="mini-select" onchange="aplicarFiltro()">
                     <option value="">Todos os Lados</option>
                     <option value="A">Lado A</option>
                     <option value="B">Lado B</option>
@@ -76,21 +76,6 @@
 
     <!-- ========== CONTEÚDO PRINCIPAL ========== -->
     <main class="main-content">
-        <!-- Filtros -->
-        <section class="filter-section">
-            <div class="filter-title">📍 Filtrar por Localização</div>
-            <div class="filter-row">
-                <select class="filter-select" id="filtroRua" onchange="aplicarFiltro()">
-                    <option value="">Todas as Ruas</option>
-                </select>
-                <select class="filter-select" id="filtroLado" onchange="aplicarFiltro()">
-                    <option value="">Todos os Lados</option>
-                    <option value="A">Lado A</option>
-                    <option value="B">Lado B</option>
-                </select>
-            </div>
-        </section>
-
         <!-- Modal de Nome -->
         <div id="nameModal" class="name-modal-backdrop">
             <div class="name-modal">
@@ -2391,55 +2376,42 @@
             exportarExcel(planilha);
         }
 
+        // Ajusta deslocamento do header fixo
+        function atualizarOffsetHeader() {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const offset = header.offsetHeight + 20;
+            document.documentElement.style.setProperty('--header-offset', `${offset}px`);
+        }
+
+        window.addEventListener('resize', atualizarOffsetHeader);
+
         // ========== FILTROS ==========
         function gerarOpcoesRua() {
-            const selectPrincipal = document.getElementById('filtroRua');
-            const selectMini = document.getElementById('miniFiltroRua');
-            [selectPrincipal, selectMini].forEach(sel => {
-                // mantém somente a primeira opção "Todas"
-                sel.innerHTML = '<option value="">Todas as Ruas</option>';
-            });
+            const select = document.getElementById('filtroRua');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Todas as Ruas</option>';
 
             for (let i = 1; i <= 28; i++) {
                 const num = i.toString().padStart(2, '0');
                 const valor = `RUA ${num}`;
-                [selectPrincipal, selectMini].forEach(sel => {
-                    const option = document.createElement('option');
-                    option.value = valor;
-                    option.textContent = valor;
-                    sel.appendChild(option);
-                });
+                const option = document.createElement('option');
+                option.value = valor;
+                option.textContent = valor;
+                select.appendChild(option);
             }
 
             // Define filtro padrão para reduzir o volume inicial exibido
             const filtroPadrao = 'RUA 01';
-            const possuiPadrao = Array.from(selectPrincipal.options).some(opt => opt.value === filtroPadrao);
+            const possuiPadrao = Array.from(select.options).some(opt => opt.value === filtroPadrao);
             if (possuiPadrao) {
-                selectPrincipal.value = filtroPadrao;
-                selectMini.value = filtroPadrao;
+                select.value = filtroPadrao;
             }
         }
 
         function aplicarFiltro() {
-            document.getElementById('miniFiltroRua').value = document.getElementById('filtroRua').value;
-            document.getElementById('miniFiltroLado').value = document.getElementById('filtroLado').value;
             renderizarTabela();
-        }
-
-        function sincronizarFiltroRua(valor) {
-            const selectPrincipal = document.getElementById('filtroRua');
-            if (selectPrincipal.value !== valor) {
-                selectPrincipal.value = valor;
-                renderizarTabela();
-            }
-        }
-
-        function sincronizarFiltroLado(valor) {
-            const selectPrincipal = document.getElementById('filtroLado');
-            if (selectPrincipal.value !== valor) {
-                selectPrincipal.value = valor;
-                renderizarTabela();
-            }
         }
 
         function filtrarDados({ incluirIndices = false } = {}) {
@@ -2636,8 +2608,12 @@
         function excluirLinha(idx) {
             if (confirm('Deseja excluir este item?')) {
                 dados.splice(idx, 1);
-                salvarDados();
+                carregarDados();
+                gerarOpcoesRua();
                 renderizarTabela();
+                carregarTemaInicial();
+                carregarNomeUsuario();
+                atualizarOffsetHeader();
             }
         }
 
