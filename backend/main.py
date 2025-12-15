@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
+from threading import Lock
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -14,6 +16,8 @@ if str(BASE_DIR) not in sys.path:
     sys.path.append(str(BASE_DIR))
 
 from scripts.salvar import HEADERS, salvar_linhas  # noqa: E402
+
+EXPORT_LOCK = Lock()
 
 PLANILHA_ALIASES = {
     "planilha1": "Planilha1",
@@ -116,7 +120,23 @@ def api_export(payload: ExportPayload):
     linhas = [_record_to_row(record) for record in payload.records]
     destino_planilha = _resolver_destino_planilha(payload.destinoPlanilha)
 
+    queue_started = time.perf_counter()
+    lock_wait_ms = 0
+    processing_ms = 0
+
+    acquired = EXPORT_LOCK.acquire(timeout=30)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Servidor ocupado",
+                "details": "Há outro envio em processamento. Tente novamente em instantes.",
+            },
+        )
+
     try:
+        lock_wait_ms = int((time.perf_counter() - queue_started) * 1000)
+        processing_started = time.perf_counter()
         result = salvar_linhas(
             linhas,
             incluir_header=payload.includeHeader,
@@ -124,18 +144,23 @@ def api_export(payload: ExportPayload):
             worksheet_title=destino_planilha,
             conflict_policy=payload.conflictPolicy or "merge",
         )
+        processing_ms = int((time.perf_counter() - processing_started) * 1000)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "Falha ao salvar dados no Google Sheets",
                 "details": str(exc),
+                "timings": {"lockWaitMs": lock_wait_ms, "processingMs": processing_ms},
             },
         ) from exc
+    finally:
+        EXPORT_LOCK.release()
 
+    timings = {"lockWaitMs": lock_wait_ms, "processingMs": processing_ms}
     if isinstance(result, dict):
-        return {"status": "ok", "report": result, "columns": HEADERS}
-    return {"status": "ok", "rows": len(linhas), "columns": HEADERS}
+        return {"status": "ok", "report": result, "columns": HEADERS, "timings": timings}
+    return {"status": "ok", "rows": len(linhas), "columns": HEADERS, "timings": timings}
 
 
 if __name__ == "__main__":

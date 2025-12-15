@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, height=device-height, viewport-fit=cover, user-scalable=no">
     <title>Controle de Inventário</title>
     <link rel="icon" href="logo_ebrali-2025.png" type="image/png">
     
@@ -42,6 +42,12 @@
                     <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
                 </svg>
                 Trocar conferente
+            </button>
+            <button class="btn-export btn-clear" onclick="resetarDados()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 6h18v2H3V6zm2 3h14l-1 13H6L5 9zm5-6h4v2h-4V3z"/>
+                </svg>
+                Limpar dados
             </button>
             <button class="btn-export" onclick="abrirModalExportacao()">
                 <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
