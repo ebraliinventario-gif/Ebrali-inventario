@@ -157,6 +157,44 @@ body {
     gap: 10px;
     margin-top: 12px;
     flex-wrap: wrap;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.header-actions.open {
+    max-height: 200px;
+    opacity: 1;
+}
+
+.header-actions-wrapper {
+    margin-top: 10px;
+}
+
+.header-actions-toggle {
+    width: 100%;
+    background: rgba(15,23,42,0.25);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.header-actions-toggle svg {
+    transition: transform 0.3s ease;
+}
+
+.header-actions-wrapper.open .header-actions-toggle svg {
+    transform: rotate(180deg);
 }
 
 .header-mini {

@@ -52,25 +52,33 @@
                 </select>
             </div>
         </div>
-        <div class="header-actions">
-            <button class="btn-export" onclick="resetarNomeUsuario()">
-                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
+        <div class="header-actions-wrapper">
+            <button class="header-actions-toggle" onclick="toggleHeaderActions()">
+                <span id="headerActionsLabel">Ações rápidas</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                Trocar conferente
             </button>
-            <button class="btn-export btn-clear" onclick="resetarDados()">
-                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 6h18v2H3V6zm2 3h14l-1 13H6L5 9zm5-6h4v2h-4V3z"/>
-                </svg>
-                Limpar dados
-            </button>
-            <button class="btn-export" onclick="abrirModalExportacao()">
-                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-                </svg>
-                Exportar Excel
-            </button>
+            <div class="header-actions" id="headerActions">
+                <button class="btn-export" onclick="resetarNomeUsuario()">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
+                    </svg>
+                    Trocar conferente
+                </button>
+                <button class="btn-export btn-clear" onclick="resetarDados()">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 6h18v2H3V6zm2 3h14l-1 13H6L5 9zm5-6h4v2h-4V3z"/>
+                    </svg>
+                    Limpar dados
+                </button>
+                <button class="btn-export" onclick="abrirModalExportacao()">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Exportar Excel
+                </button>
+            </div>
         </div>
     </header>
 
@@ -2386,6 +2394,16 @@
 
         window.addEventListener('resize', atualizarOffsetHeader);
 
+        function toggleHeaderActions(forceState) {
+            const wrapper = document.querySelector('.header-actions-wrapper');
+            const actions = document.getElementById('headerActions');
+            const isOpen = forceState !== undefined ? forceState : !wrapper.classList.contains('open');
+
+            wrapper.classList.toggle('open', isOpen);
+            actions.classList.toggle('open', isOpen);
+            atualizarOffsetHeader();
+        }
+
         // ========== FILTROS ==========
         function gerarOpcoesRua() {
             const select = document.getElementById('filtroRua');
@@ -2613,6 +2631,7 @@
                 renderizarTabela();
                 carregarTemaInicial();
                 carregarNomeUsuario();
+                toggleHeaderActions(false);
                 atualizarOffsetHeader();
             }
         }
