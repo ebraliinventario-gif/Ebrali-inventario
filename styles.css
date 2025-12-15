@@ -286,8 +286,8 @@ body {
     .header {
         position: sticky;
         top: 0;
-        padding: 8px 12px 10px;
-        gap: 8px;
+        padding: 4px 10px 6px;
+        gap: 5px;
     }
 
     .header-bar {
@@ -295,7 +295,7 @@ body {
         grid-template-areas:
             "logo logo"
             "left right";
-        gap: 6px 8px;
+        gap: 4px 6px;
     }
 
     .header-filter-group {
@@ -303,18 +303,19 @@ body {
         min-width: 0;
     }
 
-    .header-actions-wrapper {
-        width: 100%;
-    }
-
     .logo-img {
-        max-width: 180px;
+        max-width: 160px;
     }
 
     .header-filter-select {
         width: 100%;
-        font-size: 12px;
-        padding: 6px 10px;
+        font-size: 11.5px;
+        padding: 4px 8px;
+    }
+
+    .header-actions-wrapper {
+        width: 100%;
+        margin-top: 4px;
     }
 }
 
