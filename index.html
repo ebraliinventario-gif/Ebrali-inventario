@@ -2294,27 +2294,37 @@
             if (window.__iosFocusFixInstalled) return;
             window.__iosFocusFixInstalled = true;
 
-            let aplicadoPrimeiraVez = false;
+            let lastScrollTs = 0;
+            window.addEventListener('scroll', () => {
+                lastScrollTs = Date.now();
+            }, { passive: true });
+
             document.addEventListener('focusin', (e) => {
                 const el = e.target;
                 if (!el || typeof el.closest !== 'function') return;
                 if (!el.matches('input, textarea, select')) return;
 
-                // Só ajusta a primeira ocorrência, onde o Safari costuma dar o maior “pulo”.
-                if (aplicadoPrimeiraVez) return;
-                aplicadoPrimeiraVez = true;
+                // Se o usuário acabou de rolar manualmente, não briga com o scroll.
+                if (Date.now() - lastScrollTs < 250) return;
 
-                const y = window.scrollY;
-                // Em iOS, a abertura do teclado pode forçar scroll. Tentamos estabilizar.
-                setTimeout(() => {
+                const yAntes = window.scrollY;
+
+                const estabilizar = () => {
+                    const yDepois = window.scrollY;
+                    const delta = Math.abs(yDepois - yAntes);
+                    // Só corrige quando o salto é grande (comportamento típico do Safari ao trocar foco).
+                    if (delta < 140) return;
                     try {
-                        window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+                        window.scrollTo({ top: yAntes, left: 0, behavior: 'auto' });
                     } catch (_) {
-                        window.scrollTo(0, y);
+                        window.scrollTo(0, yAntes);
                     }
-                }, 80);
+                };
 
-                // Recalcula offset do header, caso a viewport mude.
+                // Em iOS, a abertura/fechamento do teclado pode forçar scroll em mais de um frame.
+                setTimeout(estabilizar, 60);
+                setTimeout(estabilizar, 220);
+
                 setTimeout(() => {
                     try { atualizarOffsetHeader(); } catch (_) {}
                 }, 200);

@@ -745,6 +745,27 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
+@supports (-webkit-touch-callout: none) {
+    .table-scroll {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scroll-padding-top: var(--header-offset, 140px);
+        scroll-padding-bottom: 260px;
+    }
+
+    @supports (height: 100dvh) {
+        .table-scroll {
+            max-height: calc(100dvh - var(--header-offset, 140px) - 24px);
+        }
+    }
+
+    @supports not (height: 100dvh) {
+        .table-scroll {
+            max-height: calc(100vh - var(--header-offset, 140px) - 24px);
+        }
+    }
+}
+
 table {
     width: 100%;
     min-width: 500px;
