@@ -7,9 +7,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#14532D">
-    <meta name="application-name" content="Controle de Inventário">
-    <meta name="apple-mobile-web-app-title" content="Controle de Inventário">
-    <link rel="manifest" href="manifest.webmanifest">
     <title>Controle de Inventário</title>
     <link rel="icon" href="logo_ebrali-2025.png" type="image/png">
     
@@ -67,13 +64,6 @@
                 </svg>
             </button>
             <div class="header-actions" id="headerActions">
-                <button class="btn-export" id="fullScreenButton" onclick="toggleFullScreen()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M9 9h6v6H9z" fill="currentColor"/>
-                    </svg>
-                    <span id="fullScreenButtonLabel">Tela cheia</span>
-                </button>
                 <button class="btn-export" onclick="resetarNomeUsuario()">
                     <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
@@ -2236,8 +2226,6 @@
             inicializarNomeUsuario();
             renderizarTabela();
             atualizarOffsetHeader();
-            atualizarEstadoTelaCheia();
-            registrarGestoFullscreenAutomatico();
         });
 
         // ========== GERENCIAMENTO DE TEMA ==========
@@ -2355,7 +2343,6 @@
             aplicarNomeUsuario();
             fecharModalNome();
             renderizarTabela();
-            solicitarFullscreenPreferencial();
         }
 
         function resetarNomeUsuario() {
@@ -2815,115 +2802,6 @@
             }
         });
 
-        const isStandaloneDisplay = () => {
-            try {
-                return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
-            } catch {
-                return window.navigator.standalone;
-            }
-        };
-        function estaEmTelaCheia() {
-            return Boolean(document.fullscreenElement || document.webkitFullscreenElement || isStandaloneDisplay());
-        }
-
-        function atualizarEstadoTelaCheia() {
-            const label = document.getElementById('fullScreenButtonLabel');
-            if (!label) return;
-            const ativo = estaEmTelaCheia();
-            label.textContent = ativo ? 'Sair tela cheia' : 'Tela cheia';
-            document.body.classList.toggle('fullscreen-active', ativo);
-        }
-
-        async function entrarEmTelaCheia() {
-            const element = document.documentElement;
-            if (element.requestFullscreen) {
-                await element.requestFullscreen();
-                return true;
-            }
-            if (element.webkitRequestFullscreen) {
-                element.webkitRequestFullscreen();
-                return true;
-            }
-            window.scrollTo(0, 1);
-            return false;
-        }
-
-        async function toggleFullScreen() {
-            if (estaEmTelaCheia() && document.fullscreenElement) {
-                if (document.exitFullscreen) {
-                    await document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
-                atualizarEstadoTelaCheia();
-                return;
-            }
-
-            await entrarEmTelaCheia();
-            setTimeout(atualizarEstadoTelaCheia, 200);
-        }
-
-        async function solicitarFullscreenPreferencial() {
-            if (solicitacaoFullscreenEmAndamento) return false;
-            solicitacaoFullscreenEmAndamento = true;
-            try {
-                if (estaEmTelaCheia()) {
-                    atualizarEstadoTelaCheia();
-                    return true;
-                }
-                const entrou = await entrarEmTelaCheia();
-                if (!entrou) {
-                    window.scrollTo(0, 1);
-                }
-                setTimeout(atualizarEstadoTelaCheia, 200);
-                return entrou;
-            } catch (erro) {
-                console.warn('Não foi possível ativar tela cheia automaticamente:', erro);
-                return false;
-            } finally {
-                solicitacaoFullscreenEmAndamento = false;
-            }
-        }
-
-        document.addEventListener('fullscreenchange', atualizarEstadoTelaCheia);
-        document.addEventListener('webkitfullscreenchange', atualizarEstadoTelaCheia);
-        const displayModeMediaQuery = window.matchMedia ? window.matchMedia('(display-mode: standalone)') : null;
-        if (displayModeMediaQuery?.addEventListener) {
-            displayModeMediaQuery.addEventListener('change', atualizarEstadoTelaCheia);
-        } else if (displayModeMediaQuery?.addListener) {
-            displayModeMediaQuery.addListener(atualizarEstadoTelaCheia);
-        }
-
-        function registrarGestoFullscreenAutomatico() {
-            if (fullscreenGestureRegistrado) return;
-            fullscreenGestureRegistrado = true;
-
-            const handler = async () => {
-                if (estaEmTelaCheia() || isStandaloneDisplay()) return;
-                const sucesso = await solicitarFullscreenPreferencial();
-                if (sucesso) {
-                    removerGestos();
-                }
-            };
-
-            const eventos = ['touchend', 'pointerup', 'click'];
-            const alvos = [
-                document.body,
-                document.querySelector('.header'),
-                document.querySelector('.table-container'),
-                document.querySelector('#nameModal'),
-            ].filter(Boolean);
-
-            const removerGestos = () => {
-                alvos.forEach(alvo => {
-                    eventos.forEach(evento => alvo.removeEventListener(evento, handler));
-                });
-            };
-
-            alvos.forEach(alvo => {
-                eventos.forEach(evento => alvo.addEventListener(evento, handler, { passive: true }));
-            });
-        }
     </script>
 </body>
 </html>
