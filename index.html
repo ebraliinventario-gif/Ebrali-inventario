@@ -2901,9 +2901,26 @@
         }
 
         // ========== EXPORTAÇÃO EXCEL ==========
+        let exportacaoEmAndamento = false;
+
+        function esperar(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
         async function exportarExcel(planilhaDestino = 'Planilha1') {
             if (!Array.isArray(dados) || dados.length === 0) {
                 alert('Nenhum dado para enviar!');
+                return;
+            }
+
+            if (exportacaoEmAndamento) {
+                atualizarStatusExportacao({
+                    status: 'queue',
+                    title: 'Exportação em andamento',
+                    subtitle: 'Aguarde finalizar para enviar novamente.',
+                    progress: 30,
+                    allowClose: true,
+                });
                 return;
             }
 
@@ -2952,30 +2969,75 @@
                 destinoPlanilha: planilhaDestino,
             };
 
+            exportacaoEmAndamento = true;
+            abrirStatusExportacao({ status: 'queue', title: 'Na fila', subtitle: 'Aguardando liberação do servidor' });
+
+            const maxTentativas = 4;
             try {
-                abrirStatusExportacao({ status: 'queue', title: 'Na fila', subtitle: 'Aguardando liberação do servidor' });
-                const response = await fetch(`${API_BASE_URL}/api/export`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                });
+                for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+                    atualizarStatusExportacao({
+                        status: 'queue',
+                        title: 'Enviando',
+                        subtitle: `Tentativa ${tentativa} de ${maxTentativas}`,
+                        progress: 20 + tentativa * 10,
+                        allowClose: false,
+                    });
 
-                if (!response.ok) {
-                    const texto = await response.text();
-                    throw new Error(texto || 'Erro desconhecido');
+                    const response = await fetch(`${API_BASE_URL}/api/export`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    if (response.ok) {
+                        const resultado = await response.json();
+                        atualizarStatusExportacao({
+                            status: 'processing',
+                            title: 'Exportando',
+                            subtitle: 'Gravando registros no Google Sheets',
+                            progress: 80,
+                        });
+                        mostrarResumoExportacao(resultado, payload.records.length);
+                        return;
+                    }
+
+                    const status = response.status;
+                    let detalhe = '';
+                    try {
+                        const asJson = await response.json();
+                        detalhe = asJson?.detail?.details || asJson?.details || asJson?.detail || asJson?.error || '';
+                    } catch (_) {
+                        try {
+                            detalhe = await response.text();
+                        } catch (__){
+                            detalhe = '';
+                        }
+                    }
+
+                    const retryable = status === 429 || status === 503;
+                    if (!retryable || tentativa === maxTentativas) {
+                        throw new Error(detalhe || `Falha ao exportar (HTTP ${status})`);
+                    }
+
+                    const baseMs = status === 503 ? 2500 : 4500;
+                    const esperaMs = Math.min(20000, baseMs * tentativa + Math.floor(Math.random() * 1200));
+                    const esperaSeg = Math.max(2, Math.ceil(esperaMs / 1000));
+
+                    atualizarStatusExportacao({
+                        status: 'queue',
+                        title: status === 429 ? 'Limite do Google Sheets' : 'Servidor ocupado',
+                        subtitle: `Aguardando ${esperaSeg}s para tentar novamente...`,
+                        progress: 40,
+                        metrics: [
+                            { text: 'Dica: evite vários celulares exportando ao mesmo tempo.', type: 'muted' },
+                        ],
+                        allowClose: false,
+                    });
+
+                    await esperar(esperaMs);
                 }
-
-                const resultado = await response.json();
-                atualizarStatusExportacao({
-                    status: 'processing',
-                    title: 'Exportando',
-                    subtitle: 'Gravando registros no Google Sheets',
-                    progress: 80,
-                });
-
-                mostrarResumoExportacao(resultado, payload.records.length);
             } catch (erro) {
                 console.error('Falha ao sincronizar com Google Sheets:', erro);
                 atualizarStatusExportacao({
@@ -2985,6 +3047,8 @@
                     metrics: [],
                     allowClose: true,
                 });
+            } finally {
+                exportacaoEmAndamento = false;
             }
         }
 

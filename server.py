@@ -123,6 +123,19 @@ def api_export():
             conflict_policy=payload.get("conflictPolicy", "merge"),
         )
     except Exception as exc:  # noqa: BLE001
+        msg = str(exc)
+        msg_lower = msg.lower()
+        if "[429]" in msg or "quota" in msg_lower or "too many requests" in msg_lower:
+            return (
+                jsonify(
+                    {
+                        "error": "Limite do Google Sheets atingido",
+                        "details": "Muitos envios em pouco tempo. Aguarde alguns segundos e tente novamente.",
+                        "raw": msg,
+                    }
+                ),
+                429,
+            )
         # Retorna erro amigável ao front em caso de falha ao falar com o Google
         return (
             jsonify(

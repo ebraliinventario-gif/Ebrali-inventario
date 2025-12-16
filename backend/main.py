@@ -146,6 +146,18 @@ def api_export(payload: ExportPayload):
         )
         processing_ms = int((time.perf_counter() - processing_started) * 1000)
     except Exception as exc:  # noqa: BLE001
+        msg = str(exc)
+        msg_lower = msg.lower()
+        if "[429]" in msg or "quota" in msg_lower or "too many requests" in msg_lower:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Limite do Google Sheets atingido",
+                    "details": "Muitos envios em pouco tempo. Aguarde alguns segundos e tente novamente.",
+                    "raw": msg,
+                    "timings": {"lockWaitMs": lock_wait_ms, "processingMs": processing_ms},
+                },
+            ) from exc
         raise HTTPException(
             status_code=500,
             detail={
