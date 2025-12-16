@@ -449,7 +449,7 @@ body {
 
 .header {
     position: fixed;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     left: 0;
     right: 0;
     background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
@@ -644,8 +644,10 @@ body {
 
 @media (max-width: 600px) {
     .header {
-        position: sticky;
-        top: 0;
+        position: fixed;
+        top: env(safe-area-inset-top, 0px);
+        left: 0;
+        right: 0;
         padding: 4px 10px 6px;
         gap: 5px;
     }
