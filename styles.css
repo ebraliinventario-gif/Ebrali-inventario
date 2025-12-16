@@ -435,6 +435,11 @@ td {
     color: var(--text);
 }
 
+body.hide-endereco-desc th:nth-child(2),
+body.hide-endereco-desc td:nth-child(2) {
+    display: none;
+}
+
 tr {
     transition: background 0.2s ease;
 }

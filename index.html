@@ -70,6 +70,12 @@
                     </svg>
                     Trocar conferente
                 </button>
+                <button class="btn-export" onclick="toggleDescricaoEndereco()" id="btnToggleDescricaoEndereco">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 5c-7.633 0-11 7-11 7s3.367 7 11 7 11-7 11-7-3.367-7-11-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/>
+                    </svg>
+                    <span id="btnToggleDescricaoEnderecoLabel">Ocultar descrição</span>
+                </button>
                 <button class="btn-export btn-clear" onclick="resetarDados()">
                     <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M3 6h18v2H3V6zm2 3h14l-1 13H6L5 9zm5-6h4v2h-4V3z"/>
@@ -150,7 +156,7 @@
                     <thead>
                         <tr>
                             <th>Código Endereço</th>
-                            <th>Descrição Endereço</th>
+                            <th id="headerDescricaoEndereco">Descrição Endereço</th>
                             <th>Armazém</th>
                             <th class="custom-col-header">Cód. Produto</th>
                             <th class="custom-col-header">Descrição Produto</th>
@@ -192,6 +198,22 @@
         const API_BASE_URL =
             (window.APP_CONFIG && window.APP_CONFIG.apiBaseUrl) ||
             'https://ebrali-inventario-backend.onrender.com';
+        // Injeta endereços de TÉRREO e PÁTIO (50 cada) nos dados iniciais
+        (function () {
+            if (!window.initialData) {
+                window.initialData = [];
+            }
+
+            const extras = [];
+            for (let i = 1; i <= 50; i++) {
+                const num = String(i).padStart(2, '0');
+
+                extras.push({ codigo: `TE${num}`, descricao: `TÉRREO ${num}`, custom1: '', custom2: '', custom3: '' });
+                extras.push({ codigo: `PA${num}`, descricao: `PÁTIO ${num}`, custom1: '', custom2: '', custom3: '' });
+            }
+
+            window.initialData = window.initialData.concat(extras);
+        })();
         // Dados carregados dos arquivos externos via window.initialData
         const dadosIniciais = window.initialData || [];
         let solicitacaoFullscreenEmAndamento = false;
@@ -2224,9 +2246,37 @@
             carregarColunasPersonalizadas();
             gerarOpcoesRua();
             inicializarNomeUsuario();
+            inicializarToggleDescricaoEndereco();
             renderizarTabela();
             atualizarOffsetHeader();
         });
+
+        function inicializarToggleDescricaoEndereco() {
+            const esconder = localStorage.getItem('ocultarDescricaoEndereco') === '1';
+            document.body.classList.toggle('hide-endereco-desc', esconder);
+
+            const header = document.getElementById('headerDescricaoEndereco');
+            if (header) {
+                header.ondblclick = () => toggleDescricaoEndereco();
+            }
+
+            atualizarLabelBotaoDescricaoEndereco();
+        }
+
+        function toggleDescricaoEndereco() {
+            const novoEstado = !document.body.classList.contains('hide-endereco-desc');
+            document.body.classList.toggle('hide-endereco-desc', novoEstado);
+            localStorage.setItem('ocultarDescricaoEndereco', novoEstado ? '1' : '0');
+            atualizarLabelBotaoDescricaoEndereco();
+        }
+
+        function atualizarLabelBotaoDescricaoEndereco() {
+            const btn = document.getElementById('btnToggleDescricaoEndereco');
+            const label = document.getElementById('btnToggleDescricaoEnderecoLabel');
+            if (!btn || !label) return;
+            const oculto = document.body.classList.contains('hide-endereco-desc');
+            label.textContent = oculto ? 'Mostrar descrição' : 'Ocultar descrição';
+        }
 
         // ========== GERENCIAMENTO DE TEMA ==========
         function carregarTema() {
@@ -2431,6 +2481,16 @@
                 select.appendChild(option);
             }
 
+            const optTerreo = document.createElement('option');
+            optTerreo.value = 'TÉRREO';
+            optTerreo.textContent = 'TÉRREO';
+            select.appendChild(optTerreo);
+
+            const optPatio = document.createElement('option');
+            optPatio.value = 'PÁTIO';
+            optPatio.textContent = 'PÁTIO';
+            select.appendChild(optPatio);
+
             // Define filtro padrão para reduzir o volume inicial exibido
             const filtroPadrao = 'RUA 01';
             const possuiPadrao = Array.from(select.options).some(opt => opt.value === filtroPadrao);
@@ -2452,8 +2512,18 @@
             dados.forEach((item, index) => {
                 // Extrai rua do código (ex: PI01A0101 -> RUA 01, IN02A0102 -> RUA 02)
                 const isPiso = item.codigo.startsWith('PS');
+                const isTerreo = item.codigo.startsWith('TE');
+                const isPatio = item.codigo.startsWith('PA');
                 const ruaMatch = item.codigo.match(/\d{2}/);
                 let ruaItem = ruaMatch ? 'RUA ' + ruaMatch[0] : '';
+
+                if (isTerreo) {
+                    ruaItem = 'TÉRREO';
+                }
+
+                if (isPatio) {
+                    ruaItem = 'PÁTIO';
+                }
 
                 if (isPiso) {
                     const ruaDescricaoMatch = (item.descricao || '').match(/RUA\s*(\d{2})/i);
@@ -2495,6 +2565,10 @@
         }
 
         function determinarArmazem(codigo) {
+            const codigoNormalizado = String(codigo || '').toUpperCase();
+            if (codigoNormalizado.startsWith('TE') || codigoNormalizado.startsWith('PA')) {
+                return '01';
+            }
             const numeroRua = extrairNumeroRua(codigo);
             if (numeroRua === null) return '';
             if (numeroRua >= 1 && numeroRua <= 20) return '01';
@@ -2547,7 +2621,7 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><span class="cell-fixed">${item.codigo}</span></td>
-                    <td><span class="cell-fixed">${item.descricao}</span></td>
+                    <td class="col-desc-endereco" ondblclick="toggleDescricaoEndereco()"><span class="cell-fixed desc-endereco">${item.descricao}</span></td>
                     <td><span class="cell-fixed">${determinarArmazem(item.codigo)}</span></td>
                     <td><input type="text" class="cell-input custom-col" value="${item.custom1 || ''}" onchange="atualizarCodigoProduto(${idxReal}, this.value)" placeholder="Cód. prod."></td>
                     <td><input type="text" class="cell-input custom-col" value="${item.custom2 || ''}" readonly></td>
@@ -2567,6 +2641,9 @@
                 const valor = `RUA ${num}`;
                 html += `<option value="${valor}" ${selecionada === valor ? 'selected' : ''}>${valor}</option>`;
             }
+
+            html += `<option value="TÉRREO" ${selecionada === 'TÉRREO' ? 'selected' : ''}>TÉRREO</option>`;
+            html += `<option value="PÁTIO" ${selecionada === 'PÁTIO' ? 'selected' : ''}>PÁTIO</option>`;
             return html;
         }
 
@@ -2663,8 +2740,32 @@
                 return;
             }
 
+            const exportBase = dados.map((item, idx) => ({ item, idx }));
+            const exportOrdenado = exportBase.slice().sort((a, b) => {
+                const ac = String(a.item.codigo || '').toUpperCase();
+                const bc = String(b.item.codigo || '').toUpperCase();
+
+                const aIsPA = ac.startsWith('PA');
+                const aIsTE = ac.startsWith('TE');
+                const bIsPA = bc.startsWith('PA');
+                const bIsTE = bc.startsWith('TE');
+
+                const aGroup = aIsPA ? 1 : aIsTE ? 2 : 0;
+                const bGroup = bIsPA ? 1 : bIsTE ? 2 : 0;
+
+                if (aGroup !== bGroup) return aGroup - bGroup;
+
+                if (aGroup === 1 || aGroup === 2) {
+                    const aNum = parseInt(ac.replace(/\D+/g, ''), 10);
+                    const bNum = parseInt(bc.replace(/\D+/g, ''), 10);
+                    return (aNum || 0) - (bNum || 0);
+                }
+
+                return a.idx - b.idx;
+            });
+
             const payload = {
-                records: dados.map((item, idx) => {
+                records: exportOrdenado.map(({ item, idx }) => {
                     const idInterno = gerarItemIdUnico(item, idx);
                     return {
                         id_interno: String(idInterno || ''),
