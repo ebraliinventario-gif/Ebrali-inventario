@@ -1,0 +1,17 @@
+{
+  "name": "Controle de Inventário",
+  "short_name": "Inventário",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#14532D",
+  "theme_color": "#14532D",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "logo_ebrali-2025.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
