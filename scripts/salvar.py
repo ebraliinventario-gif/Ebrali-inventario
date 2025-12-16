@@ -107,12 +107,48 @@ def _get_sheet():
 
 def _get_sheet_by_title(title: str):
     """Obtém uma worksheet específica pelo título."""
-    try:
-        client = _get_client()
-        spreadsheet_id = _get_env("SPREADSHEET_ID")
-        return client.open_by_key(spreadsheet_id).worksheet(title)
-    except gspread.exceptions.WorksheetNotFound:
-        raise RuntimeError(f"Worksheet '{title}' não encontrada na planilha") from None
+    client = _get_client()
+    spreadsheet_id = _get_env("SPREADSHEET_ID")
+    spreadsheet = client.open_by_key(spreadsheet_id)
+
+    titulo = (title or "").strip()
+    if not titulo:
+        raise RuntimeError("Título da worksheet vazio")
+
+    tentativas = [titulo]
+    normalizado = " ".join(titulo.split())
+    if normalizado != titulo:
+        tentativas.append(normalizado)
+
+    # Variações comuns: Planilha2 <-> Planilha 2
+    if " " not in normalizado:
+        tentativas.append(
+            normalizado.replace("Planilha", "Planilha ")
+        )
+    else:
+        tentativas.append(normalizado.replace("Planilha ", "Planilha"))
+
+    # Remove duplicadas preservando ordem
+    vistos = set()
+    tentativas_unicas = []
+    for item in tentativas:
+        key = item.strip()
+        if not key:
+            continue
+        if key.lower() in vistos:
+            continue
+        vistos.add(key.lower())
+        tentativas_unicas.append(key)
+
+    for tentativa in tentativas_unicas:
+        try:
+            return spreadsheet.worksheet(tentativa)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+
+    raise RuntimeError(
+        f"Worksheet '{title}' não encontrada na planilha. Tentativas: {tentativas_unicas}"
+    ) from None
 
 
 def _normalize_row(valores: Sequence[object]) -> List[str]:

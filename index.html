@@ -6,9 +6,12 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Inventário">
     <meta name="theme-color" content="#14532D">
     <title>Controle de Inventário</title>
     <link rel="icon" href="logo_ebrali-2025.png" type="image/png">
+    <link rel="apple-touch-icon" href="logo_ebrali-2025.png">
+    <link rel="manifest" href="manifest.webmanifest">
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +37,33 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div id="introOverlay" class="intro-overlay" aria-hidden="false">
+        <div class="intro-content">
+            <img src="logo_ebrali-2025.png" alt="Logo Ebrali" class="intro-logo">
+            <div class="intro-tagline">INDÚSTRIA DE TEMPEROS</div>
+            <div class="intro-by" id="introBy">BY Claudio Paiva</div>
+        </div>
+    </div>
+
+    <div id="conferenteOverlay" class="flow-overlay" aria-hidden="true" style="display:none;">
+        <div class="flow-card">
+            <div class="flow-badge">Conferente</div>
+            <div class="flow-title">Identificação</div>
+            <div class="flow-subtitle">Confirme quem está conferindo para registrar corretamente.</div>
+            <input id="conferenteInput" class="flow-input" type="text" placeholder="Digite seu nome" autocomplete="name"
+                   onkeydown="if(event.key==='Enter'){confirmarConferenteOverlay();}">
+            <div class="flow-actions">
+                <button type="button" class="flow-btn flow-btn-primary" onclick="confirmarConferenteOverlay()">Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="welcomeOverlay" class="flow-overlay welcome-overlay" aria-hidden="true" style="display:none;">
+        <div class="welcome-content">
+            <div class="welcome-title">Bem-vindo</div>
+            <div class="welcome-name" id="welcomeName">&nbsp;</div>
+        </div>
+    </div>
     <!-- ========== HEADER ========== -->
     <header class="header">
         <div class="header-bar">
@@ -2241,15 +2271,155 @@
 
         // ========== INICIALIZAÇÃO ==========
         document.addEventListener('DOMContentLoaded', () => {
+            tocarIntroEIniciar();
+        });
+
+        function iniciarAplicacao() {
             carregarDados();
             carregarTema();
             carregarColunasPersonalizadas();
             gerarOpcoesRua();
             inicializarNomeUsuario();
             inicializarToggleDescricaoEndereco();
+            registrarServiceWorker();
             renderizarTabela();
             atualizarOffsetHeader();
-        });
+        }
+
+        function tocarIntroEIniciar() {
+            const overlay = document.getElementById('introOverlay');
+            const by = document.getElementById('introBy');
+
+            if (!overlay || !by) {
+                iniciarAplicacao();
+                return;
+            }
+
+            let finalizado = false;
+            const finalizar = () => {
+                if (finalizado) return;
+                finalizado = true;
+                overlay.classList.add('intro-hide');
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    overlay.setAttribute('aria-hidden', 'true');
+                }, 450);
+                iniciarFluxoPosIntro();
+            };
+
+            // Mostra "BY" após o logo
+            const t1 = setTimeout(() => {
+                by.classList.add('show');
+            }, 1100);
+
+            // Finaliza a intro
+            const t2 = setTimeout(finalizar, 3000);
+
+            overlay.addEventListener('click', () => {
+                clearTimeout(t1);
+                clearTimeout(t2);
+                finalizar();
+            }, { once: true });
+        }
+
+        function iniciarFluxoPosIntro() {
+            userName = localStorage.getItem('userName') || '';
+
+            if (!userName) {
+                abrirConferenteOverlay();
+                return;
+            }
+
+            tocarWelcomeOverlay(userName, () => {
+                iniciarAplicacao();
+            });
+        }
+
+        function abrirConferenteOverlay() {
+            const overlay = document.getElementById('conferenteOverlay');
+            const input = document.getElementById('conferenteInput');
+            if (!overlay || !input) {
+                iniciarAplicacao();
+                return;
+            }
+            overlay.style.display = 'flex';
+            overlay.setAttribute('aria-hidden', 'false');
+            input.value = userName || '';
+            setTimeout(() => input.focus(), 100);
+        }
+
+        function fecharConferenteOverlay() {
+            const overlay = document.getElementById('conferenteOverlay');
+            if (!overlay) return;
+            overlay.classList.add('flow-hide');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                overlay.classList.remove('flow-hide');
+                overlay.setAttribute('aria-hidden', 'true');
+            }, 220);
+        }
+
+        function confirmarConferenteOverlay() {
+            const input = document.getElementById('conferenteInput');
+            if (!input) {
+                iniciarAplicacao();
+                return;
+            }
+            const nome = input.value.trim();
+            if (!nome) {
+                alert('Por favor, informe seu nome. / Please enter your name.');
+                input.focus();
+                return;
+            }
+            userName = nome;
+            localStorage.setItem('userName', userName);
+            aplicarNomeUsuario();
+            fecharConferenteOverlay();
+            tocarWelcomeOverlay(userName, () => {
+                iniciarAplicacao();
+            });
+        }
+
+        function tocarWelcomeOverlay(nome, onDone) {
+            const overlay = document.getElementById('welcomeOverlay');
+            const elNome = document.getElementById('welcomeName');
+            if (!overlay || !elNome) {
+                if (typeof onDone === 'function') onDone();
+                return;
+            }
+
+            elNome.textContent = String(nome || '').trim() ? `${nome}` : '';
+            overlay.style.display = 'flex';
+            overlay.setAttribute('aria-hidden', 'false');
+            overlay.classList.remove('flow-hide');
+            overlay.classList.remove('welcome-hide');
+            overlay.classList.add('welcome-show');
+
+            let finalizado = false;
+            const finalizar = () => {
+                if (finalizado) return;
+                finalizado = true;
+                overlay.classList.remove('welcome-show');
+                overlay.classList.add('welcome-hide');
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    overlay.classList.remove('welcome-hide');
+                    overlay.setAttribute('aria-hidden', 'true');
+                    if (typeof onDone === 'function') onDone();
+                }, 260);
+            };
+
+            const t = setTimeout(finalizar, 1700);
+            overlay.addEventListener('click', () => {
+                clearTimeout(t);
+                finalizar();
+            }, { once: true });
+        }
+
+        function registrarServiceWorker() {
+            if (!('serviceWorker' in navigator)) return;
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
+        }
 
         function inicializarToggleDescricaoEndereco() {
             const esconder = localStorage.getItem('ocultarDescricaoEndereco') === '1';
@@ -2351,9 +2521,6 @@
         function inicializarNomeUsuario() {
             userName = localStorage.getItem('userName') || '';
             aplicarNomeUsuario();
-            if (!userName) {
-                setTimeout(abrirModalNome, 400);
-            }
         }
 
         function aplicarNomeUsuario() {
