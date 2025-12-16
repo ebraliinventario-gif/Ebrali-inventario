@@ -2275,6 +2275,7 @@
         });
 
         function iniciarAplicacao() {
+            instalarMitigacaoPuloIOS();
             carregarDados();
             carregarTema();
             carregarColunasPersonalizadas();
@@ -2284,6 +2285,40 @@
             registrarServiceWorker();
             renderizarTabela();
             atualizarOffsetHeader();
+        }
+
+        function instalarMitigacaoPuloIOS() {
+            const ua = navigator.userAgent || '';
+            const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+            if (!isIOS) return;
+            if (window.__iosFocusFixInstalled) return;
+            window.__iosFocusFixInstalled = true;
+
+            let aplicadoPrimeiraVez = false;
+            document.addEventListener('focusin', (e) => {
+                const el = e.target;
+                if (!el || typeof el.closest !== 'function') return;
+                if (!el.matches('input, textarea, select')) return;
+
+                // Só ajusta a primeira ocorrência, onde o Safari costuma dar o maior “pulo”.
+                if (aplicadoPrimeiraVez) return;
+                aplicadoPrimeiraVez = true;
+
+                const y = window.scrollY;
+                // Em iOS, a abertura do teclado pode forçar scroll. Tentamos estabilizar.
+                setTimeout(() => {
+                    try {
+                        window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+                    } catch (_) {
+                        window.scrollTo(0, y);
+                    }
+                }, 80);
+
+                // Recalcula offset do header, caso a viewport mude.
+                setTimeout(() => {
+                    try { atualizarOffsetHeader(); } catch (_) {}
+                }, 200);
+            }, true);
         }
 
         function tocarIntroEIniciar() {
