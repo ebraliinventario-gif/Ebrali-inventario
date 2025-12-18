@@ -15,6 +15,49 @@
     --glow: rgba(34,197,94,0.2);
 }
 
+@media (max-width: 480px) {
+    .theme-container {
+        bottom: 14px;
+        left: 14px;
+    }
+
+    .theme-toggle {
+        width: 54px;
+        height: 54px;
+    }
+
+    .theme-options {
+        bottom: 70px;
+        left: 0;
+        border-radius: 18px;
+        max-width: calc(100vw - 28px);
+    }
+
+    .theme-picker {
+        width: min(240px, calc(100vw - 56px));
+        padding: 12px;
+    }
+
+    .theme-wheel {
+        width: 150px;
+        height: 150px;
+    }
+
+    .theme-wheel::after {
+        translate: -50% -50%;
+        transform:
+            translate(-50%, -50%)
+            rotate(calc((var(--wheel-hue) - 90) * 1deg))
+            translateX(50px)
+            rotate(calc((90 - var(--wheel-hue)) * 1deg));
+    }
+
+    .theme-option {
+        width: 34px;
+        height: 34px;
+    }
+}
+
 [data-theme="blue"] {
     --primary: #1E40AF;
     --primary-dark: #1E3A8A;
@@ -941,9 +984,10 @@ tr:hover {
     flex-direction: column;
     gap: 10px;
     padding: 10px;
-    background: white;
+    background: var(--bg-card);
     border-radius: 25px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    max-width: min(260px, calc(100vw - 40px));
 }
 
 .theme-options.active {
@@ -960,14 +1004,34 @@ tr:hover {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    border: 3px solid white;
+    border: 2px solid rgba(255,255,255,0.85);
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    transition: transform 0.2s;
+    box-shadow:
+        0 10px 24px rgba(0,0,0,0.18),
+        inset 0 0 0 1px rgba(255,255,255,0.25);
+    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
 }
 
 .theme-option:hover {
-    transform: scale(1.1);
+    transform: translateY(-1px) scale(1.05);
+    filter: saturate(1.05) brightness(1.03);
+    box-shadow:
+        0 14px 30px rgba(0,0,0,0.22),
+        inset 0 0 0 1px rgba(255,255,255,0.28);
+}
+
+.theme-option:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.theme-option:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 3px rgba(255,255,255,0.7),
+        0 0 0 6px var(--glow),
+        0 14px 30px rgba(0,0,0,0.22),
+        inset 0 0 0 1px rgba(255,255,255,0.28);
 }
 
 .theme-option.green { background: linear-gradient(135deg, #166534, #22C55E); }
@@ -975,6 +1039,130 @@ tr:hover {
 .theme-option.purple { background: linear-gradient(135deg, #7C3AED, #A78BFA); }
 .theme-option.red { background: linear-gradient(135deg, #B91C1C, #DC2626); }
 .theme-option.dark { background: linear-gradient(135deg, #18181B, #3F3F46); border: 1px solid #52525B; }
+
+.theme-picker {
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 18px;
+    background: var(--bg-card);
+    border: 1px solid rgba(0,0,0,0.08);
+}
+
+.theme-legacy {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 2px 0;
+}
+
+.theme-neutral {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.theme-neutral-btn {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.theme-neutral-btn:active {
+    transform: scale(0.98);
+}
+
+.theme-picker-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.2px;
+}
+
+.theme-wheel {
+    --wheel-hue: 142;
+    width: 180px;
+    height: 180px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at center, rgba(255,255,255,0.98) 0 55%, transparent 56%),
+        conic-gradient(
+            hsl(0 90% 55%),
+            hsl(60 90% 55%),
+            hsl(120 90% 55%),
+            hsl(180 90% 55%),
+            hsl(240 90% 55%),
+            hsl(300 90% 55%),
+            hsl(360 90% 55%)
+        );
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    position: relative;
+    cursor: pointer;
+}
+
+.theme-wheel::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: hsl(var(--wheel-hue) 80% 55%);
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    transform:
+        translate(-50%, -50%)
+        rotate(calc((var(--wheel-hue) - 90) * 1deg))
+        translateX(60px)
+        rotate(calc((90 - var(--wheel-hue)) * 1deg));
+}
+
+.theme-hue {
+    width: 100%;
+    accent-color: var(--primary);
+}
+
+.theme-picker-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.theme-swatch {
+    width: 44px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+
+.theme-mode {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.theme-mode:active {
+    transform: scale(0.98);
+}
 
 .name-modal-backdrop {
     position: fixed;

@@ -215,11 +215,34 @@
     <div class="theme-container">
         <button class="theme-toggle" onclick="toggleThemeMenu()">🎨</button>
         <div class="theme-options" id="themeOptions">
-            <div class="theme-option green" onclick="setTheme('green')" title="Verde"></div>
-            <div class="theme-option blue" onclick="setTheme('blue')" title="Azul"></div>
-            <div class="theme-option purple" onclick="setTheme('purple')" title="Roxo"></div>
-            <div class="theme-option red" onclick="setTheme('red')" title="Vermelho"></div>
-            <div class="theme-option dark" onclick="setTheme('dark')" title="Escuro"></div>
+            <div class="theme-picker" aria-label="Paleta de cores">
+                <div class="theme-picker-title">Círculo cromático</div>
+                <div class="theme-wheel" id="themeWheel" title="Toque para escolher a cor"></div>
+                <input
+                    id="themeHue"
+                    class="theme-hue"
+                    type="range"
+                    min="0"
+                    max="360"
+                    value="142"
+                    oninput="setHueTheme(parseInt(this.value, 10))"
+                    aria-label="Matiz (Hue)"
+                >
+                <div class="theme-legacy" aria-label="Cores nostálgicas">
+                    <div class="theme-option green" onclick="setTheme('green')" title="Verde"></div>
+                    <div class="theme-option blue" onclick="setTheme('blue')" title="Azul"></div>
+                    <div class="theme-option purple" onclick="setTheme('purple')" title="Roxo"></div>
+                    <div class="theme-option red" onclick="setTheme('red')" title="Vermelho"></div>
+                    <div class="theme-option dark" onclick="setTheme('dark')" title="Escuro"></div>
+                </div>
+                <div class="theme-picker-actions">
+                    <div class="theme-swatch" id="themeSwatch" title="Cor atual"></div>
+                    <div class="theme-neutral" aria-label="Modo">
+                        <button class="theme-neutral-btn" type="button" onclick="setNeutralTheme('light')" title="Claro">Claro</button>
+                        <button class="theme-mode" type="button" onclick="setTheme('dark')" title="Modo escuro">Escuro</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2495,20 +2518,293 @@
 
         // ========== GERENCIAMENTO DE TEMA ==========
         function carregarTema() {
-            const tema = localStorage.getItem('tema') || 'green';
-            setTheme(tema, false);
+            // Compatibilidade com versões antigas (que salvavam 'tema')
+            const temaLegado = localStorage.getItem('tema');
+            if (temaLegado && !localStorage.getItem('themeMode') && !localStorage.getItem('themeHue')) {
+                if (temaLegado === 'dark') {
+                    localStorage.setItem('themeMode', 'dark');
+                } else {
+                    localStorage.setItem('themeMode', 'chromatic');
+                    // aproximações simples para mapear temas antigos -> hue
+                    const legacyToHue = {
+                        green: 142,
+                        blue: 215,
+                        purple: 270,
+                        red: 8,
+                    };
+                    const mapped = legacyToHue[String(temaLegado).toLowerCase()];
+                    localStorage.setItem('themeHue', String(Number.isFinite(mapped) ? mapped : 142));
+                }
+            }
+
+            _applySavedTheme();
+            _setupThemeWheel();
+        }
+
+        function _hsl(h, s, l, a) {
+            const hue = ((h % 360) + 360) % 360;
+            if (typeof a === 'number') {
+                return `hsla(${hue}, ${s}%, ${l}%, ${a})`;
+            }
+            return `hsl(${hue}, ${s}%, ${l}%)`;
+        }
+
+        function setHueTheme(hue, salvar = true) {
+            const root = document.documentElement;
+
+            // Saímos do modo escuro (se estiver ativo) e aplicamos paleta dinâmica
+            root.setAttribute('data-theme', 'chromatic');
+
+            // Paleta baseada em HSL (círculo cromático)
+            const primary = _hsl(hue, 65, 32);
+            const primaryDark = _hsl(hue, 70, 22);
+            const primaryLight = _hsl(hue, 75, 52);
+            const accent = _hsl(hue + 18, 80, 55);
+
+            const bg = _hsl(hue, 70, 97);
+            const text = _hsl(hue, 55, 18);
+            const textSecondary = _hsl(hue, 45, 28);
+            const border = _hsl(hue, 60, 88);
+            const headerBg = primaryDark;
+            const gradientStart = primary;
+            const gradientEnd = _hsl(hue + 8, 70, 34);
+            const glow = _hsl(hue, 75, 52, 0.2);
+
+            root.style.setProperty('--primary', primary);
+            root.style.setProperty('--primary-dark', primaryDark);
+            root.style.setProperty('--primary-light', primaryLight);
+            root.style.setProperty('--accent', accent);
+            root.style.setProperty('--bg', bg);
+            root.style.setProperty('--bg-card', '#FFFFFF');
+            root.style.setProperty('--text', text);
+            root.style.setProperty('--text-secondary', textSecondary);
+            root.style.setProperty('--border', border);
+            root.style.setProperty('--header-bg', headerBg);
+            root.style.setProperty('--gradient-start', gradientStart);
+            root.style.setProperty('--gradient-end', gradientEnd);
+            root.style.setProperty('--glow', glow);
+
+            const swatch = document.getElementById('themeSwatch');
+            if (swatch) {
+                swatch.style.background = `linear-gradient(135deg, ${primaryDark}, ${primaryLight})`;
+            }
+
+            const wheel = document.getElementById('themeWheel');
+            if (wheel) {
+                wheel.style.setProperty('--wheel-hue', ((hue % 360) + 360) % 360);
+            }
+
+            if (salvar) {
+                localStorage.setItem('themeMode', 'chromatic');
+                localStorage.setItem('themeHue', String(hue));
+            }
+        }
+
+        function setNeutralTheme(mode, salvar = true) {
+            const root = document.documentElement;
+            root.setAttribute('data-theme', 'neutral');
+
+            const vars = {
+                '--danger': 'var(--danger)',
+            };
+
+            if (mode === 'black') {
+                vars['--primary'] = '#0A0A0A';
+                vars['--primary-dark'] = '#000000';
+                vars['--primary-light'] = '#27272A';
+                vars['--accent'] = '#A1A1AA';
+                vars['--bg'] = '#000000';
+                vars['--bg-card'] = '#0B0B0D';
+                vars['--text'] = '#FAFAFA';
+                vars['--text-secondary'] = '#D4D4D8';
+                vars['--border'] = '#27272A';
+                vars['--header-bg'] = '#000000';
+                vars['--gradient-start'] = '#0A0A0A';
+                vars['--gradient-end'] = '#18181B';
+                vars['--glow'] = 'rgba(255,255,255,0.06)';
+            } else if (mode === 'gray') {
+                vars['--primary'] = '#3F3F46';
+                vars['--primary-dark'] = '#18181B';
+                vars['--primary-light'] = '#71717A';
+                vars['--accent'] = '#A1A1AA';
+                vars['--bg'] = '#0B0B0D';
+                vars['--bg-card'] = '#111113';
+                vars['--text'] = '#FAFAFA';
+                vars['--text-secondary'] = '#D4D4D8';
+                vars['--border'] = '#27272A';
+                vars['--header-bg'] = '#0A0A0A';
+                vars['--gradient-start'] = '#18181B';
+                vars['--gradient-end'] = '#27272A';
+                vars['--glow'] = 'rgba(255,255,255,0.05)';
+            } else {
+                // light
+                vars['--primary'] = '#111827';
+                vars['--primary-dark'] = '#0B1220';
+                vars['--primary-light'] = '#334155';
+                vars['--accent'] = '#64748B';
+                vars['--bg'] = '#FFFFFF';
+                vars['--bg-card'] = '#FFFFFF';
+                vars['--text'] = '#0B1220';
+                vars['--text-secondary'] = '#334155';
+                vars['--border'] = '#E5E7EB';
+                vars['--header-bg'] = '#0B1220';
+                vars['--gradient-start'] = '#111827';
+                vars['--gradient-end'] = '#0B1220';
+                vars['--glow'] = 'rgba(15, 23, 42, 0.12)';
+            }
+
+            Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+
+            const swatch = document.getElementById('themeSwatch');
+            if (swatch) {
+                swatch.style.background = `linear-gradient(135deg, ${vars['--primary-dark']}, ${vars['--primary-light']})`;
+            }
+
+            if (salvar) {
+                localStorage.setItem('themeMode', `neutral-${mode || 'light'}`);
+            }
         }
 
         function setTheme(tema, salvar = true) {
-            document.documentElement.setAttribute('data-theme', tema);
-            if (salvar) {
-                localStorage.setItem('tema', tema);
+            if (tema === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                // limpamos overrides do modo cromático (para o CSS do tema dark assumir)
+                const vars = [
+                    '--primary',
+                    '--primary-dark',
+                    '--primary-light',
+                    '--accent',
+                    '--bg',
+                    '--bg-card',
+                    '--text',
+                    '--text-secondary',
+                    '--border',
+                    '--header-bg',
+                    '--gradient-start',
+                    '--gradient-end',
+                    '--glow'
+                ];
+                vars.forEach((v) => document.documentElement.style.removeProperty(v));
+                if (salvar) {
+                    localStorage.setItem('themeMode', 'dark');
+                }
+            } else if (tema === 'green' || tema === 'blue' || tema === 'purple' || tema === 'red') {
+                // Nostalgia: usa os temas fixos do CSS para manter as cores exatamente como antes.
+                // O tema verde antigo é o default (:root), então removemos o data-theme.
+                const root = document.documentElement;
+                const vars = [
+                    '--primary',
+                    '--primary-dark',
+                    '--primary-light',
+                    '--accent',
+                    '--bg',
+                    '--bg-card',
+                    '--text',
+                    '--text-secondary',
+                    '--border',
+                    '--header-bg',
+                    '--gradient-start',
+                    '--gradient-end',
+                    '--glow'
+                ];
+                vars.forEach((v) => root.style.removeProperty(v));
+
+                if (tema === 'green') {
+                    root.removeAttribute('data-theme');
+                } else {
+                    root.setAttribute('data-theme', tema);
+                }
+
+                const legacyToHue = { green: 142, blue: 215, purple: 270, red: 8 };
+                const hueEl = document.getElementById('themeHue');
+                if (hueEl) {
+                    hueEl.value = String(legacyToHue[tema]);
+                }
+
+                const wheel = document.getElementById('themeWheel');
+                if (wheel) {
+                    wheel.style.setProperty('--wheel-hue', legacyToHue[tema]);
+                }
+
+                const swatch = document.getElementById('themeSwatch');
+                if (swatch) {
+                    swatch.style.background = `linear-gradient(135deg, var(--primary-dark), var(--primary-light))`;
+                }
+
+                if (salvar) {
+                    localStorage.setItem('themeMode', `legacy-${tema}`);
+                    localStorage.setItem('themeHue', String(legacyToHue[tema]));
+                }
+            } else {
+                const hueEl = document.getElementById('themeHue');
+                const hue = hueEl ? parseInt(hueEl.value, 10) : 142;
+                setHueTheme(hue, salvar);
             }
+
             document.getElementById('themeOptions').classList.remove('active');
         }
 
         function toggleThemeMenu() {
             document.getElementById('themeOptions').classList.toggle('active');
+        }
+
+        function _applySavedTheme() {
+            const mode = localStorage.getItem('themeMode');
+            if (mode === 'dark') {
+                setTheme('dark', false);
+                return;
+            }
+
+            if (mode && mode.startsWith('legacy-')) {
+                const legacyTheme = mode.replace('legacy-', '');
+                if (legacyTheme === 'green' || legacyTheme === 'blue' || legacyTheme === 'purple' || legacyTheme === 'red') {
+                    setTheme(legacyTheme, false);
+                    return;
+                }
+            }
+
+            if (mode && mode.startsWith('neutral-')) {
+                const neutralMode = mode.replace('neutral-', '');
+                setNeutralTheme(neutralMode, false);
+                return;
+            }
+
+            const savedHue = parseInt(localStorage.getItem('themeHue') || '142', 10);
+            const hue = Number.isFinite(savedHue) ? savedHue : 142;
+            const hueEl = document.getElementById('themeHue');
+            if (hueEl) {
+                hueEl.value = String(hue);
+            }
+            setHueTheme(hue, false);
+        }
+
+        function _setupThemeWheel() {
+            const wheel = document.getElementById('themeWheel');
+            const hueEl = document.getElementById('themeHue');
+            if (!wheel || !hueEl) {
+                return;
+            }
+
+            function pickHueFromEvent(ev) {
+                const rect = wheel.getBoundingClientRect();
+                const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+                const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+                const x = clientX - (rect.left + rect.width / 2);
+                const y = clientY - (rect.top + rect.height / 2);
+                // conic-gradient começa no topo (0°) e segue sentido horário.
+                // atan2 (com eixo Y da tela apontando para baixo) começa na direita e segue sentido horário,
+                // então fazemos um shift de +90° para alinhar 0° no topo.
+                const angle = Math.atan2(y, x); // -PI..PI
+                let deg = Math.round((angle * 180) / Math.PI + 90);
+                deg = (deg + 360) % 360;
+                hueEl.value = String(deg);
+                setHueTheme(deg);
+            }
+
+            wheel.addEventListener('click', pickHueFromEvent);
+            wheel.addEventListener('touchstart', (ev) => {
+                pickHueFromEvent(ev);
+            }, { passive: true });
         }
 
         // ========== GERENCIAMENTO DE DADOS ==========
