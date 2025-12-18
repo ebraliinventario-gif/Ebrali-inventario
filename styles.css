@@ -839,6 +839,21 @@ td {
     color: var(--text);
 }
 
+#tabelaInventario th:nth-child(6),
+#tabelaInventario th:nth-child(7),
+#tabelaInventario th:nth-child(8),
+#tabelaInventario td:nth-child(6),
+#tabelaInventario td:nth-child(7),
+#tabelaInventario td:nth-child(8) {
+    text-align: left;
+}
+
+#tabelaInventario td:nth-child(6) .cell-input,
+#tabelaInventario td:nth-child(7) .cell-input,
+#tabelaInventario td:nth-child(8) .cell-input {
+    text-align: left;
+}
+
 body.hide-endereco-desc th:nth-child(2),
 body.hide-endereco-desc td:nth-child(2) {
     display: none;

@@ -2495,7 +2495,19 @@
 
             const header = document.getElementById('headerDescricaoEndereco');
             if (header) {
-                header.ondblclick = () => toggleDescricaoEndereco();
+                let ignorarCliqueAte = 0;
+
+                header.ondblclick = (e) => {
+                    ignorarCliqueAte = Date.now() + 350;
+                    e.preventDefault();
+                    toggleDescricaoEndereco();
+                };
+
+                header.onclick = (e) => {
+                    if (Date.now() < ignorarCliqueAte) return;
+                    e.preventDefault();
+                    toggleDescricaoEndereco();
+                };
             }
 
             atualizarLabelBotaoDescricaoEndereco();
