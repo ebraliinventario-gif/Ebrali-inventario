@@ -3200,14 +3200,6 @@
             });
         }
 
-        function _isMobileLike() {
-            try {
-                return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-            } catch (_) {
-                return false;
-            }
-        }
-
         function _linhaEstaIncompleta(item) {
             if (!item) return true;
             const campos = ['custom1', 'custom3', 'lote', 'validade'];
@@ -3400,7 +3392,7 @@
             }
             salvarDados();
 
-            if (_isMobileLike() && codigo) {
+            if (codigo) {
                 definirPendingFocus(idx, 'custom3');
             }
             solicitarRender();
@@ -3410,7 +3402,7 @@
             dados[idx].custom3 = String(valor || '');
             salvarDados();
 
-            if (_isMobileLike() && String(valor || '').trim()) {
+            if (String(valor || '').trim()) {
                 definirPendingFocus(idx, 'lote');
             }
             solicitarRender();
@@ -3420,7 +3412,7 @@
             dados[idx].lote = String(valor || '');
             salvarDados();
 
-            if (_isMobileLike() && String(valor || '').trim()) {
+            if (String(valor || '').trim()) {
                 definirPendingFocus(idx, 'validade');
             }
             solicitarRender();
@@ -3430,7 +3422,7 @@
             dados[idx].validade = String(valor || '');
             salvarDados();
 
-            if (_isMobileLike() && String(valor || '').trim()) {
+            if (String(valor || '').trim()) {
                 const destino = _encontrarProximaLinhaIncompleta(idx);
                 if (destino !== null) {
                     definirPendingFocus(destino, 'custom1');
