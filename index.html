@@ -94,6 +94,12 @@
                 </svg>
             </button>
             <div class="header-actions" id="headerActions">
+                <button class="btn-export" id="btnInstalarApp" onclick="instalarApp()" style="display:none;">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 16l4-5h-3V4h-2v7H8l4 5zm-7 2h14v2H5v-2z"/>
+                    </svg>
+                    Baixar app
+                </button>
                 <button class="btn-export" onclick="resetarNomeUsuario()">
                     <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 5V2L8 6l4 4V7c2.757 0 5 2.243 5 5a5.002 5.002 0 0 1-4 4.9v2.021c3.39-.488 6-3.392 6-6.921 0-3.86-3.141-7-7-7zM7 12a5.002 5.002 0 0 1 4-4.9V5.079C7.61 5.567 5 8.471 5 12c0 3.86 3.141 7 7 7v3l4-4-4-4v3c-2.757 0-5-2.243-5-5z"/>
@@ -2309,8 +2315,71 @@
             renderizarTabela();
             instalarNavegacaoTabela();
             atualizarEstadoBotaoExportar();
+            atualizarEstadoBotaoInstalarApp();
             atualizarOffsetHeader();
         }
+
+        let _deferredInstallPrompt = null;
+
+        function _appJaInstalado() {
+            const standaloneMatch = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+            const iosStandalone = window.navigator && window.navigator.standalone;
+            return Boolean(standaloneMatch || iosStandalone);
+        }
+
+        function _isIOS() {
+            const ua = navigator.userAgent || '';
+            return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+
+        function atualizarEstadoBotaoInstalarApp() {
+            const btn = document.getElementById('btnInstalarApp');
+            if (!btn) return;
+
+            if (_appJaInstalado()) {
+                btn.style.display = 'none';
+                return;
+            }
+
+            btn.style.display = '';
+        }
+
+        async function instalarApp() {
+            if (_appJaInstalado()) {
+                atualizarEstadoBotaoInstalarApp();
+                return;
+            }
+
+            if (_deferredInstallPrompt) {
+                try {
+                    _deferredInstallPrompt.prompt();
+                    await _deferredInstallPrompt.userChoice;
+                } catch (_) {
+                } finally {
+                    _deferredInstallPrompt = null;
+                    atualizarEstadoBotaoInstalarApp();
+                }
+                return;
+            }
+
+            if (_isIOS()) {
+                alert('Para instalar no iPhone: abra no Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.');
+                return;
+            }
+
+            alert('Instalação não disponível neste navegador. Se estiver no Chrome/Edge, procure a opção “Instalar app” no menu do navegador.');
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            _deferredInstallPrompt = e;
+            atualizarEstadoBotaoInstalarApp();
+        });
+
+        window.addEventListener('appinstalled', () => {
+            _deferredInstallPrompt = null;
+            atualizarEstadoBotaoInstalarApp();
+        });
 
         function instalarMitigacaoPuloIOS() {
             const ua = navigator.userAgent || '';
@@ -3439,6 +3508,7 @@
                 renderizarTabela();
                 carregarTemaInicial();
                 carregarNomeUsuario();
+                atualizarEstadoBotaoInstalarApp();
                 toggleHeaderActions(false);
                 atualizarOffsetHeader();
             }
