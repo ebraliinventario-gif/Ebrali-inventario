@@ -58,10 +58,6 @@
         </div>
     </div>
 
-    <div class="fab-container" aria-label="Ações rápidas">
-        <button class="fab-add" type="button" onclick="adicionarLinha()" title="Adicionar">+</button>
-    </div>
-
     <div id="welcomeOverlay" class="flow-overlay welcome-overlay" aria-hidden="true" style="display:none;">
         <div class="welcome-content">
             <div class="welcome-title">Bem-vindo</div>
@@ -2492,7 +2488,13 @@
 
         function registrarServiceWorker() {
             if (!('serviceWorker' in navigator)) return;
-            navigator.serviceWorker.register('./sw.js').catch(() => {});
+            const swUrl = `./sw.js?v=3`;
+            navigator.serviceWorker
+                .register(swUrl)
+                .then((reg) => {
+                    try { reg.update(); } catch (_) {}
+                })
+                .catch(() => {});
         }
 
         function inicializarToggleDescricaoEndereco() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'inventario-cache-v2';
+const CACHE_NAME = 'inventario-cache-v3';
 
 const ASSETS = [
     './',
@@ -37,16 +37,39 @@ self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;
 
+    const url = new URL(req.url);
+    const isSameOrigin = url.origin === self.location.origin;
+    const isNavigation = req.mode === 'navigate';
+    const isIndex = isSameOrigin && (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
+
     event.respondWith(
-        caches.match(req).then((cached) => {
-            if (cached) return cached;
-            return fetch(req)
-                .then((res) => {
+        (async () => {
+            // Para o HTML principal (navegação), prioriza a rede para evitar app desatualizado.
+            if (isNavigation || isIndex) {
+                try {
+                    const res = await fetch(req);
                     const copy = res.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+                    const cache = await caches.open(CACHE_NAME);
+                    await cache.put(req, copy);
                     return res;
-                })
-                .catch(() => caches.match('./index.html'));
-        })
+                } catch (_) {
+                    const cached = await caches.match(req);
+                    return cached || caches.match('./index.html');
+                }
+            }
+
+            // Para assets, usa cache-first.
+            const cached = await caches.match(req);
+            if (cached) return cached;
+            try {
+                const res = await fetch(req);
+                const copy = res.clone();
+                const cache = await caches.open(CACHE_NAME);
+                await cache.put(req, copy);
+                return res;
+            } catch (_) {
+                return caches.match('./index.html');
+            }
+        })()
     );
 });
