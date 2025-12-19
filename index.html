@@ -3256,8 +3256,32 @@
             if (window.__navegacaoTabelaInstalada) return;
             window.__navegacaoTabelaInstalada = true;
 
+            function _isEnterLikeKey(e) {
+                if (!e) return false;
+                if (e.isComposing) return false;
+
+                const key = String(e.key || '').trim();
+                const code = String(e.code || '').trim();
+                const which = Number(e.which || e.keyCode || 0);
+
+                if (which === 13) return true;
+                if (code === 'Enter' || code === 'NumpadEnter') return true;
+
+                // iOS (Safari) pode reportar a tecla inferior direita como 'Go', 'Next', 'Done', etc.
+                // Também aceitamos variações comuns em maiúsculas/minúsculas.
+                const normalized = key.toLowerCase();
+                return (
+                    normalized === 'enter' ||
+                    normalized === 'go' ||
+                    normalized === 'next' ||
+                    normalized === 'done' ||
+                    normalized === 'send' ||
+                    normalized === 'return'
+                );
+            }
+
             document.addEventListener('keydown', (e) => {
-                if (e.key !== 'Enter') return;
+                if (!_isEnterLikeKey(e)) return;
 
                 const target = e.target;
                 if (!target || !target.matches || !target.matches('input.cell-input[data-idx][data-col]')) return;
