@@ -3041,7 +3041,7 @@
         }
 
         function aplicarFiltro() {
-            renderizarTabela();
+            solicitarRender();
         }
 
         function filtrarDados({ incluirIndices = false } = {}) {
@@ -3173,6 +3173,39 @@
                 `;
                 corpo.appendChild(tr);
             });
+
+            aplicarPendingFocus();
+        }
+
+        let renderAgendado = false;
+        let pendingFocus = null;
+
+        function definirPendingFocus(idxReal, col) {
+            pendingFocus = { idxReal, col };
+        }
+
+        function aplicarPendingFocus() {
+            if (!pendingFocus) return;
+            const { idxReal, col } = pendingFocus;
+            pendingFocus = null;
+            _focusCell(idxReal, col);
+        }
+
+        function solicitarRender() {
+            if (renderAgendado) return;
+            renderAgendado = true;
+            requestAnimationFrame(() => {
+                renderAgendado = false;
+                renderizarTabela();
+            });
+        }
+
+        function _isMobileLike() {
+            try {
+                return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+            } catch (_) {
+                return false;
+            }
         }
 
         function _linhaEstaIncompleta(item) {
@@ -3297,20 +3330,16 @@
 
                 const proxCol = e.shiftKey ? _campoAnterior(col) : _proximoCampo(col);
                 if (proxCol) {
+                    definirPendingFocus(idxReal, proxCol);
                     target.dispatchEvent(new Event('change', { bubbles: true }));
-                    setTimeout(() => {
-                        _focusCell(idxReal, proxCol);
-                    }, 0);
                     return;
                 }
 
+                const destino = _encontrarProximaLinhaIncompleta(idxReal);
+                if (destino !== null) {
+                    definirPendingFocus(destino, 'custom1');
+                }
                 target.dispatchEvent(new Event('change', { bubbles: true }));
-                setTimeout(() => {
-                    const destino = _encontrarProximaLinhaIncompleta(idxReal);
-                    if (destino !== null) {
-                        _focusCell(destino, 'custom1');
-                    }
-                }, 0);
             }, true);
         }
 
@@ -3341,7 +3370,7 @@
             prepararItemBase(novoItem);
             dados.push(novoItem);
             salvarDados();
-            renderizarTabela();
+            solicitarRender();
             
             // Scroll para a última linha
             setTimeout(() => {
@@ -3353,7 +3382,7 @@
         function atualizarCampo(idx, campo, valor) {
             dados[idx][campo] = String(valor);
             salvarDados();
-            renderizarTabela();
+            solicitarRender();
         }
 
         function atualizarCodigoProduto(idx, valor) {
@@ -3370,25 +3399,44 @@
                 dados[idx].custom2 = '';
             }
             salvarDados();
-            renderizarTabela();
+
+            if (_isMobileLike() && codigo) {
+                definirPendingFocus(idx, 'custom3');
+            }
+            solicitarRender();
         }
 
         function atualizarQtde(idx, valor) {
             dados[idx].custom3 = String(valor || '');
             salvarDados();
-            renderizarTabela();
+
+            if (_isMobileLike() && String(valor || '').trim()) {
+                definirPendingFocus(idx, 'lote');
+            }
+            solicitarRender();
         }
 
         function atualizarLote(idx, valor) {
             dados[idx].lote = String(valor || '');
             salvarDados();
-            renderizarTabela();
+
+            if (_isMobileLike() && String(valor || '').trim()) {
+                definirPendingFocus(idx, 'validade');
+            }
+            solicitarRender();
         }
 
         function atualizarValidade(idx, valor) {
             dados[idx].validade = String(valor || '');
             salvarDados();
-            renderizarTabela();
+
+            if (_isMobileLike() && String(valor || '').trim()) {
+                const destino = _encontrarProximaLinhaIncompleta(idx);
+                if (destino !== null) {
+                    definirPendingFocus(destino, 'custom1');
+                }
+            }
+            solicitarRender();
         }
 
         function excluirLinha(idx) {
