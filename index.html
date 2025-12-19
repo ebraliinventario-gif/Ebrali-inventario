@@ -58,6 +58,10 @@
         </div>
     </div>
 
+    <div class="fab-container" aria-label="Ações rápidas">
+        <button class="fab-add" type="button" onclick="adicionarLinha()" title="Adicionar">+</button>
+    </div>
+
     <div id="welcomeOverlay" class="flow-overlay welcome-overlay" aria-hidden="true" style="display:none;">
         <div class="welcome-content">
             <div class="welcome-title">Bem-vindo</div>
@@ -112,11 +116,11 @@
                     </svg>
                     Limpar dados
                 </button>
-                <button class="btn-export" onclick="abrirModalExportacao()">
+                <button class="btn-export" id="btnExportar" onclick="abrirModalExportacao()">
                     <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
-                    Exportar Excel
+                    <span id="btnExportarLabel">Exportar Excel</span>
                 </button>
             </div>
         </div>
@@ -149,10 +153,10 @@
                     <div class="name-modal-title">Para qual planilha enviar?</div>
                     <div class="name-modal-subtitle">Selecione a contagem desejada</div>
                     <div class="export-modal-actions">
-                        <button type="button" class="name-btn name-btn-primary" onclick="confirmarExportacao('Planilha1')">
+                        <button type="button" class="name-btn name-btn-primary" id="btnExportPlanilha1" onclick="confirmarExportacao('Planilha1')">
                             Contagem 01
                         </button>
-                        <button type="button" class="name-btn" onclick="confirmarExportacao('Planilha2')">
+                        <button type="button" class="name-btn" id="btnExportPlanilha2" onclick="confirmarExportacao('Planilha2')">
                             Contagem 02
                         </button>
                     </div>
@@ -2307,6 +2311,8 @@
             inicializarToggleDescricaoEndereco();
             registrarServiceWorker();
             renderizarTabela();
+            instalarNavegacaoTabela();
+            atualizarEstadoBotaoExportar();
             atualizarOffsetHeader();
         }
 
@@ -2945,9 +2951,18 @@
         }
 
         function abrirModalExportacao() {
+            if (obterCooldownRestanteMs() > 0) {
+                atualizarEstadoBotaoExportar();
+                return;
+            }
+            if (exportacaoEmAndamento) {
+                abrirStatusExportacao({ status: 'queue', title: 'Exportação em andamento', subtitle: 'Aguarde finalizar para enviar novamente.' });
+                return;
+            }
             const modal = document.getElementById('exportModal');
             if (!modal) return;
             modal.classList.add('active');
+            atualizarEstadoBotaoExportar();
         }
 
         function fecharModalExportacao() {
@@ -2957,6 +2972,10 @@
         }
 
         function confirmarExportacao(planilha) {
+            if (obterCooldownRestanteMs() > 0) {
+                atualizarEstadoBotaoExportar();
+                return;
+            }
             fecharModalExportacao();
             exportarExcel(planilha);
         }
@@ -3143,15 +3162,130 @@
                     <td><span class="cell-fixed">${item.codigo}</span></td>
                     <td class="col-desc-endereco" ondblclick="toggleDescricaoEndereco()"><span class="cell-fixed desc-endereco">${item.descricao}</span></td>
                     <td><span class="cell-fixed">${determinarArmazem(item.codigo)}</span></td>
-                    <td><input type="text" class="cell-input custom-col" value="${item.custom1 || ''}" onchange="atualizarCodigoProduto(${idxReal}, this.value)" placeholder="Cód. prod."></td>
-                    <td><input type="text" class="cell-input custom-col" value="${item.custom2 || ''}" readonly></td>
-                    <td><input type="text" class="cell-input custom-col" value="${item.custom3 || ''}" onchange="atualizarQtde(${idxReal}, this.value)" placeholder="Qtde"></td>
-                    <td><input type="text" class="cell-input custom-col" value="${item.lote || ''}" onchange="atualizarLote(${idxReal}, this.value)" placeholder="Lote"></td>
-                    <td><input type="text" class="cell-input custom-col" value="${item.validade || ''}" onchange="atualizarValidade(${idxReal}, this.value)" placeholder="Validade"></td>
+                    <td><input type="text" class="cell-input custom-col" data-idx="${idxReal}" data-col="custom1" value="${item.custom1 || ''}" onchange="atualizarCodigoProduto(${idxReal}, this.value)" placeholder="Cód. prod." enterkeyhint="next"></td>
+                    <td><input type="text" class="cell-input custom-col" data-idx="${idxReal}" data-col="custom2" value="${item.custom2 || ''}" readonly></td>
+                    <td><input type="text" class="cell-input custom-col" data-idx="${idxReal}" data-col="custom3" value="${item.custom3 || ''}" onchange="atualizarQtde(${idxReal}, this.value)" placeholder="Qtde" inputmode="numeric" enterkeyhint="next"></td>
+                    <td><input type="text" class="cell-input custom-col" data-idx="${idxReal}" data-col="lote" value="${item.lote || ''}" onchange="atualizarLote(${idxReal}, this.value)" placeholder="Lote" enterkeyhint="next"></td>
+                    <td><input type="text" class="cell-input custom-col" data-idx="${idxReal}" data-col="validade" value="${item.validade || ''}" onchange="atualizarValidade(${idxReal}, this.value)" placeholder="Validade" enterkeyhint="next"></td>
                     <td><span class="cell-fixed">${obterConferenteParaItem(item)}</span></td>
                 `;
                 corpo.appendChild(tr);
             });
+        }
+
+        function _linhaEstaIncompleta(item) {
+            if (!item) return true;
+            const campos = ['custom1', 'custom3', 'lote', 'validade'];
+            return !campos.some((campo) => {
+                const valor = item[campo];
+                return valor !== undefined && String(valor).trim() !== '';
+            });
+        }
+
+        function _buscarIdxRealNoFiltro(dadosFiltrados, idxReal) {
+            for (let i = 0; i < dadosFiltrados.length; i++) {
+                if (dadosFiltrados[i].index === idxReal) return i;
+            }
+            return -1;
+        }
+
+        function _encontrarProximaLinhaIncompleta(idxRealAtual) {
+            const dadosFiltrados = filtrarDados({ incluirIndices: true });
+            if (!dadosFiltrados.length) return null;
+
+            const posAtual = _buscarIdxRealNoFiltro(dadosFiltrados, idxRealAtual);
+            const start = posAtual >= 0 ? posAtual + 1 : 0;
+
+            for (let i = start; i < dadosFiltrados.length; i++) {
+                if (_linhaEstaIncompleta(dadosFiltrados[i].item)) {
+                    return dadosFiltrados[i].index;
+                }
+            }
+
+            if (start > 0) {
+                for (let i = 0; i < start; i++) {
+                    if (_linhaEstaIncompleta(dadosFiltrados[i].item)) {
+                        return dadosFiltrados[i].index;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function _focusCell(idxReal, col) {
+            const selector = `input.cell-input[data-idx="${idxReal}"][data-col="${col}"]`;
+            const el = document.querySelector(selector);
+            if (!el) return false;
+            el.focus({ preventScroll: true });
+            try {
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            } catch (_) {
+                el.scrollIntoView();
+            }
+            if (!el.readOnly) {
+                try { el.select(); } catch (_) {}
+            }
+            return true;
+        }
+
+        function irParaProximaLinhaIncompleta() {
+            const active = document.activeElement;
+            let idxRealAtual = null;
+            if (active && active.matches && active.matches('input.cell-input[data-idx]')) {
+                idxRealAtual = parseInt(active.getAttribute('data-idx'), 10);
+            }
+            const destino = _encontrarProximaLinhaIncompleta(Number.isFinite(idxRealAtual) ? idxRealAtual : null);
+            if (destino === null) return;
+            _focusCell(destino, 'custom1');
+        }
+
+        function _proximoCampo(colAtual) {
+            const ordem = ['custom1', 'custom3', 'lote', 'validade'];
+            const idx = ordem.indexOf(colAtual);
+            return idx >= 0 && idx < ordem.length - 1 ? ordem[idx + 1] : null;
+        }
+
+        function _campoAnterior(colAtual) {
+            const ordem = ['custom1', 'custom3', 'lote', 'validade'];
+            const idx = ordem.indexOf(colAtual);
+            return idx > 0 ? ordem[idx - 1] : null;
+        }
+
+        function instalarNavegacaoTabela() {
+            if (window.__navegacaoTabelaInstalada) return;
+            window.__navegacaoTabelaInstalada = true;
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+
+                const target = e.target;
+                if (!target || !target.matches || !target.matches('input.cell-input[data-idx][data-col]')) return;
+                if (target.closest('#nameModal.active, #exportModal.active, #exportStatusModal.active, #conferenteOverlay[aria-hidden="false"]')) return;
+
+                const col = target.getAttribute('data-col');
+                const idxReal = parseInt(target.getAttribute('data-idx'), 10);
+                if (!Number.isFinite(idxReal)) return;
+
+                e.preventDefault();
+
+                const proxCol = e.shiftKey ? _campoAnterior(col) : _proximoCampo(col);
+                if (proxCol) {
+                    target.dispatchEvent(new Event('change', { bubbles: true }));
+                    setTimeout(() => {
+                        _focusCell(idxReal, proxCol);
+                    }, 0);
+                    return;
+                }
+
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+                setTimeout(() => {
+                    const destino = _encontrarProximaLinhaIncompleta(idxReal);
+                    if (destino !== null) {
+                        _focusCell(destino, 'custom1');
+                    }
+                }, 0);
+            }, true);
         }
 
         function gerarOpcoesRuaHTML(selecionada) {
@@ -3255,6 +3389,56 @@
 
         // ========== EXPORTAÇÃO EXCEL ==========
         let exportacaoEmAndamento = false;
+        const exportCooldownMs = 10000;
+        let exportCooldownUntil = 0;
+        let exportCooldownTimer = null;
+
+        function obterCooldownRestanteMs() {
+            const restante = exportCooldownUntil - Date.now();
+            return restante > 0 ? restante : 0;
+        }
+
+        function atualizarEstadoBotaoExportar() {
+            const btn = document.getElementById('btnExportar');
+            const label = document.getElementById('btnExportarLabel');
+            const btn1 = document.getElementById('btnExportPlanilha1');
+            const btn2 = document.getElementById('btnExportPlanilha2');
+
+            const cooldownMs = obterCooldownRestanteMs();
+            const bloqueado = exportacaoEmAndamento || cooldownMs > 0;
+
+            if (btn) btn.disabled = bloqueado;
+            if (btn1) btn1.disabled = bloqueado;
+            if (btn2) btn2.disabled = bloqueado;
+
+            if (label) {
+                if (exportacaoEmAndamento) {
+                    label.textContent = 'Exportando...';
+                } else if (cooldownMs > 0) {
+                    const seg = Math.max(1, Math.ceil(cooldownMs / 1000));
+                    label.textContent = `Aguarde ${seg}s`;
+                } else {
+                    label.textContent = 'Exportar Excel';
+                }
+            }
+        }
+
+        function iniciarCooldownExportacao() {
+            exportCooldownUntil = Date.now() + exportCooldownMs;
+            if (exportCooldownTimer) {
+                clearInterval(exportCooldownTimer);
+                exportCooldownTimer = null;
+            }
+            exportCooldownTimer = setInterval(() => {
+                atualizarEstadoBotaoExportar();
+                if (obterCooldownRestanteMs() <= 0) {
+                    clearInterval(exportCooldownTimer);
+                    exportCooldownTimer = null;
+                    atualizarEstadoBotaoExportar();
+                }
+            }, 250);
+            atualizarEstadoBotaoExportar();
+        }
 
         function esperar(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
@@ -3266,6 +3450,19 @@
                 return;
             }
 
+            const cooldownMs = obterCooldownRestanteMs();
+            if (cooldownMs > 0) {
+                atualizarStatusExportacao({
+                    status: 'queue',
+                    title: 'Aguarde um pouco',
+                    subtitle: `Cooldown ativo. Tente novamente em ${Math.ceil(cooldownMs / 1000)}s.`,
+                    progress: 20,
+                    allowClose: true,
+                });
+                atualizarEstadoBotaoExportar();
+                return;
+            }
+
             if (exportacaoEmAndamento) {
                 atualizarStatusExportacao({
                     status: 'queue',
@@ -3274,6 +3471,7 @@
                     progress: 30,
                     allowClose: true,
                 });
+                atualizarEstadoBotaoExportar();
                 return;
             }
 
@@ -3323,6 +3521,8 @@
             };
 
             exportacaoEmAndamento = true;
+            iniciarCooldownExportacao();
+            atualizarEstadoBotaoExportar();
             abrirStatusExportacao({ status: 'queue', title: 'Na fila', subtitle: 'Aguardando liberação do servidor' });
 
             const maxTentativas = 4;
@@ -3402,6 +3602,7 @@
                 });
             } finally {
                 exportacaoEmAndamento = false;
+                atualizarEstadoBotaoExportar();
             }
         }
 
